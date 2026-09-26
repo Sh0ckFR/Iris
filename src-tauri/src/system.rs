@@ -69,6 +69,7 @@ fn normalize_separators(raw: &str) -> String {
 
 /// OS and program folders Iris never modifies, lower-case with `/` separators.
 fn protected_locations() -> Vec<String> {
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut list: Vec<String> = [
         // Windows (also found from the environment below, whatever the system drive).
         "c:/windows",
@@ -593,8 +594,9 @@ pub async fn os_volume(action: String, steps: u32) -> CmdResult<String> {
     #[cfg(mobile)]
     {
         let _ = (&action, steps);
-        return Err("volume control is not supported on this platform".into());
+        Err("volume control is not supported on this platform".into())
     }
+    #[cfg(desktop)]
     Ok(match action.as_str() {
         "mute" => "Toggled mute".to_string(),
         _ => format!("Volume {action} by about {} %", steps * 2),
@@ -1157,7 +1159,11 @@ pub async fn os_context(app: AppHandle) -> CmdResult<SystemContext> {
         os: std::env::consts::OS.to_string(),
         user: std::env::var("USERNAME").or_else(|_| std::env::var("USER")).unwrap_or_default(),
         home: home_dir(&app)?.to_string_lossy().into_owned(),
+        // Android has no desktop folder (iOS answers with the app's own).
+        #[cfg(not(target_os = "android"))]
         desktop: s(p.desktop_dir()),
+        #[cfg(target_os = "android")]
+        desktop: None,
         documents: s(p.document_dir()),
         downloads: s(p.download_dir()),
         pictures: s(p.picture_dir()),
