@@ -1,0 +1,106 @@
+/* The always-on-top mini window (transparent native window: only the pill is visible). */
+.mini-window,
+.mini-window body,
+.mini-window #root {
+  background: transparent !important;
+}
+
+.mini {
+  --mini-accent: #76b900;
+  box-sizing: border-box;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(118, 185, 0, 0.35);
+  background: linear-gradient(135deg, rgb(6, 10, 3), rgb(0, 0, 0));
+  box-shadow: inset 0 0 24px rgba(118, 185, 0, 0.08);
+  color: #e6f5d6;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  user-select: none;
+  overflow: hidden;
+}
+.mini--listening { --mini-accent: #a6ff2e; }
+.mini--thinking { --mini-accent: #d9ff7a; }
+.mini--speaking { --mini-accent: #8fdc00; }
+
+/* Iris's eye: glows and dilates with the voice level, spins while thinking. */
+.mini-orb {
+  --level: 0;
+  flex: none;
+  position: relative;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--mini-accent);
+  background: radial-gradient(circle, rgba(118, 185, 0, 0.12), transparent 70%);
+  box-shadow: 0 0 calc(8px + var(--level) * 22px) var(--mini-accent);
+  cursor: pointer;
+  transition: box-shadow 0.08s linear, border-color 0.4s;
+}
+.mini-orb::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--mini-accent) 60%, transparent);
+  animation: mini-spin 12s linear infinite;
+}
+.mini--thinking .mini-orb::before { animation-duration: 1.6s; }
+.mini-orb-eye {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+}
+
+.mini-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mini-brand {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--mini-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mini-status {
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: rgba(230, 245, 214, 0.72);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mini-reply {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: rgba(230, 245, 214, 0.92);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mini-actions { align-self: flex-start; display: flex; flex-direction: column; gap: 4px; }
+.mini-actions button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid rgba(118, 185, 0, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e6f5d6;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mini-actions button:hover { border-color: var(--mini-accent); color: var(--mini-accent); }
+
+.rtl .mini-text { direction: rtl; }
+
+@keyframes mini-spin { to { transform: rotate(360deg); } }

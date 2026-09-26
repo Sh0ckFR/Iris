@@ -1,0 +1,26 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #000000;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Error boundary fallback */
+.crash {
+  height: 100%; display: grid; place-content: center; gap: 12px; padding: 24px; text-align: center;
+  color: #e6f5d6; font-family: 'Segoe UI', system-ui, sans-serif;
+}
+.crash-logo { justify-self: center; }
+.crash h1 { margin: 0; font-size: 18px; letter-spacing: 0.5em; font-weight: 500; }
+.crash p { margin: 0; color: rgba(230, 245, 214, 0.7); }
+.crash pre { max-width: 80vw; margin: 0 auto; white-space: pre-wrap; color: #ffc2cd; font-size: 12px; }
+.crash button {
+  justify-self: center; padding: 9px 20px; border: none; border-radius: 10px; cursor: pointer;
+  font: inherit; font-weight: 600; color: #050a00; background: #76b900;
+}

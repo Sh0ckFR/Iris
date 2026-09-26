@@ -1,0 +1,54 @@
+/* Iris's animated logo (IrisLogo.tsx): bright green on black. */
+.iris-logo {
+  --iris-main: #76b900;
+  --iris-hi: #c8ff5a;
+  --iris-deep: #0a1203;
+  --level: 0;
+  --dilate: 1;
+  --spin: 24s;
+  display: block;
+  flex: none;
+  overflow: visible;
+  filter: drop-shadow(0 0 6px rgba(118, 185, 0, 0.55));
+}
+.iris-logo--listening { --dilate: 1.22; --iris-hi: #dcff8a; }
+.iris-logo--thinking { --dilate: 0.82; --spin: 1.4s; }
+.iris-logo--speaking { --dilate: 1.04; }
+
+.iris-logo g, .iris-logo circle { transform-box: fill-box; transform-origin: center; }
+
+.iris-logo__stop-deep { stop-color: var(--iris-deep); }
+.iris-logo__stop-mid { stop-color: #25400a; }
+.iris-logo__stop-rim { stop-color: var(--iris-main); }
+.iris-logo__stop-blade { stop-color: var(--iris-main); stop-opacity: 0.45; }
+.iris-logo__stop-clear { stop-color: var(--iris-main); stop-opacity: 0.02; }
+
+.iris-logo__fibers { stroke: var(--iris-hi); stroke-linecap: round; animation: iris-spin 90s linear infinite reverse; }
+
+.iris-logo__blade { fill: rgba(0, 0, 0, 0.28); stroke: var(--iris-hi); stroke-width: 4; stroke-linejoin: round; }
+.iris-logo__pupil { fill: #000; stroke: var(--iris-hi); stroke-width: 7; stroke-linejoin: round; }
+.iris-logo__limbus { fill: none; stroke: var(--iris-main); stroke-width: 12; }
+.iris-logo__glint { fill: #f1ffe0; opacity: 0.92; }
+.iris-logo__glint--small { opacity: 0.55; }
+
+.iris-logo__dilate {
+  transform: scale(calc(var(--dilate) + var(--level) * 0.35));
+  transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+.iris-logo__breathe { animation: iris-breathe 4s ease-in-out infinite; }
+.iris-logo--thinking .iris-logo__breathe { animation-duration: 0.9s; }
+.iris-logo--listening .iris-logo__breathe, .iris-logo--speaking .iris-logo__breathe { animation: none; }
+.iris-logo__spin { animation: iris-spin var(--spin) linear infinite; }
+
+.iris-logo__ring { animation: iris-spin 60s linear infinite; }
+.iris-logo--thinking .iris-logo__ring { animation-duration: 6s; }
+.iris-logo__tick { stroke: var(--iris-main); stroke-width: 5; stroke-opacity: 0.5; stroke-linecap: round; }
+.iris-logo__tick--major { stroke: var(--iris-hi); stroke-opacity: 0.9; }
+.iris-logo__arcs { fill: none; stroke: var(--iris-main); stroke-width: 16; stroke-dasharray: 100 20; stroke-linecap: round; }
+
+@keyframes iris-spin { to { transform: rotate(360deg); } }
+@keyframes iris-breathe { 50% { transform: scale(0.9); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .iris-logo__fibers, .iris-logo__breathe, .iris-logo__spin, .iris-logo__ring { animation: none; }
+}

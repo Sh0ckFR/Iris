@@ -1,0 +1,91 @@
+[package]
+name = "iris"
+version = "0.1.0"
+description = "Iris — cross-platform AI assistant"
+authors = ["yann"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "iris_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# tray-icon: Iris keeps running in the notification area when its window is closed.
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-opener = "2"
+tauri-plugin-log = "2"
+# Encrypted API-key vault (AES/XChaCha snapshot), used from the frontend.
+tauri-plugin-stronghold = "2"
+# Rust-side fetch for the webview: streaming LLM/TTS calls without CORS limits.
+# Keep major.minor in sync with @tauri-apps/plugin-http on npm (the CLI checks this).
+tauri-plugin-http = "~2.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# OS control: shell commands with a timeout; MCP servers (child processes over stdio).
+tokio = { version = "1", features = ["time", "process", "io-util", "sync"] }
+log = "0.4"
+# Vault master password: random secret + fast hash (see vault.rs).
+sha2 = "0.10"
+hex = "0.4"
+getrandom = "0.2"
+# HUD telemetry (CPU / memory).
+sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
+# Generated images arrive base64-encoded.
+base64 = "0.22"
+# HTTP calls of user-approved skills (from Rust: not limited by the webview's URL allowlist).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+# OS credential store for the vault password.
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
+# "Delete" in OS control sends files to the Recycle Bin / Trash instead of erasing them.
+trash = "5"
+# Ctrl+Shift+J from anywhere shows / hides Iris.
+tauri-plugin-global-shortcut = "2"
+# Settings → "Lancer Iris au démarrage de Windows" (off by default); started that way, he waits in the tray.
+tauri-plugin-autostart = "2"
+# "What am I looking at?": screenshot of the screen under the mouse, shrunk and JPEG-encoded.
+xcap = "0.9"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
+# Computer use: mouse and keyboard.
+enigo = "0.6"
+
+[target.'cfg(windows)'.dependencies]
+# Computer use on Windows: the accessibility tree (buttons, fields… with exact positions) and
+# window management (focus, minimize, maximize, move, resize).
+uiautomation = { version = "0.25", features = ["pattern", "control"] }
+# Window management and cursor placement (same version as uiautomation's, compiled once).
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Dwm",
+] }
+
+# Optimize dependencies even in dev builds. Stronghold encrypts its vault with scrypt
+# (deliberately expensive); unoptimized, every vault open/save took tens of seconds.
+# Our own crate stays at opt-level 0, so incremental rebuilds remain fast.
+# No debug info for dependencies: nobody steps into them, and it was most of target/ (20+ GB).
+[profile.dev.package."*"]
+opt-level = 3
+debug = false
+
+# Our crate: file/line info for backtraces is enough (full debug info is several times bigger).
+[profile.dev]
+debug = "line-tables-only"
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

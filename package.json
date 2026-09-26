@@ -1,0 +1,51 @@
+{
+  "name": "iris",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.62",
+    "@ai-sdk/google": "^4.0.79",
+    "@ai-sdk/mcp": "^2.0.58",
+    "@ai-sdk/openai": "^4.0.74",
+    "@huggingface/transformers": "^4.3.0",
+    "@mintplex-labs/piper-tts-web": "^1.0.5",
+    "@react-three/drei": "^10.7.8",
+    "@react-three/fiber": "^9.8.0",
+    "@react-three/postprocessing": "^3.1.2",
+    "@ricky0123/vad-web": "^0.0.31",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-http": "^2.6.1",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-stronghold": "^2.3.2",
+    "@xyflow/react": "^12.11.6",
+    "ai": "^7.0.113",
+    "fflate": "^0.8.3",
+    "framer-motion": "^13.4.2",
+    "marked": "^18.0.14",
+    "postprocessing": "^6.39.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "three": "^0.186.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@types/three": "^0.186.0",
+    "@vitejs/plugin-react": "^6.0.2",
+    "jsdom": "^30.1.1",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^5.0.2"
+  }
+}
