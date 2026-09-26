@@ -8,6 +8,7 @@ import { ConnectForm, ConnectedCard, MediaKey, ProviderChoice, type AccountActio
 import { IrisLogo } from './IrisLogo';
 import { VoiceEnroll } from './VoiceSetup';
 import { useVoices } from '../../lib/voiceprint';
+import { IS_DESKTOP, OS_NAME, PLATFORM } from '../../lib/platform';
 
 /**
  * First launch, step by step: the interface language, the AI account (one provider sets
@@ -188,10 +189,12 @@ export function SetupWizard({ settings, secrets, onChange, onFinish, onConnect, 
                     <small className="set-hint">{t.autonomousHint}</small>
                   </span>
                 </label>
-                <label className="set-toggle">
-                  <input type="checkbox" checked={settings.launchAtStartup} onChange={(e) => onChange({ launchAtStartup: e.target.checked })} />
-                  {all.settings.personality.launchAtStartup}
-                </label>
+                {IS_DESKTOP && (
+                  <label className="set-toggle">
+                    <input type="checkbox" checked={settings.launchAtStartup} onChange={(e) => onChange({ launchAtStartup: e.target.checked })} />
+                    {all.settings.personality.launchAtStartup(OS_NAME[PLATFORM])}
+                  </label>
+                )}
                 <label className="set-toggle">
                   <input type="checkbox" checked={settings.speakReplies} onChange={(e) => onChange({ speakReplies: e.target.checked })} />
                   {all.settings.voice.speakReplies}

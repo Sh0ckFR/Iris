@@ -9,6 +9,13 @@ body {
   background: #000000;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  /* Touch screens: no pull-to-refresh or rubber band on the HUD, no double-tap zoom, no grey
+     flash on tapped buttons. */
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Error boundary fallback */

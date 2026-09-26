@@ -3,10 +3,12 @@ import { z } from 'zod';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { ActionRequest, OsHooks } from './osTools';
+import { OS_NAME, PLATFORM } from '../../lib/platform';
 
 /**
  * Computer use (see src-tauri/src/computer.rs):
- *  - list_windows / manage_window: the OS windows, through the Win32 API (instant, no screenshot);
+ *  - list_windows / manage_window: the OS windows, through the Win32 API, System Events (macOS)
+ *    or the window manager (Linux) — instant, no screenshot;
  *  - use_computer: clicks and typing in other applications, by a vision "sub-agent" that looks at
  *    the screen, picks ONE action, does it, and looks again — up to MAX_STEPS. Only the latest
  *    screenshot is sent at each step (image tokens stay bounded), and the main conversation only
@@ -90,7 +92,10 @@ export function findWindow(windows: WindowInfo[], query: string): WindowInfo | n
 
 const describeWindow = (w: WindowInfo) => `"${w.title}"${w.focused ? ' (active)' : ''}${w.state !== 'normal' ? ` (${w.state})` : ''}`;
 
-export const COMPUTER_SYSTEM = `You operate the user's Windows computer with the mouse and keyboard, one action at a time, to reach a GOAL. At each step you receive a screenshot of the screen showing the active window, the list of accessible UI elements of that window (numbered, with their centre in screenshot pixels), and the actions done so far.
+/** Keyboard shortcuts differ on a Mac (cmd instead of ctrl, no win key). */
+const KEY_EXAMPLES = PLATFORM === 'macos' ? 'enter, esc, tab, cmd+tab, cmd+space, cmd+l, cmd+r…' : PLATFORM === 'windows' ? 'enter, esc, tab, alt+tab, win, ctrl+l, f5…' : 'enter, esc, tab, alt+tab, super, ctrl+l, f5…';
+
+export const COMPUTER_SYSTEM = `You operate the user's ${OS_NAME[PLATFORM]} computer with the mouse and keyboard, one action at a time, to reach a GOAL. At each step you receive a screenshot of the screen showing the active window, the list of accessible UI elements of that window (numbered, with their centre in screenshot pixels), and the actions done so far.
 Reply with ONLY one JSON object, no markdown:
 {"action": "click", "element": 12, "reason": "…"}                     — prefer element numbers: they are exact
 {"action": "click", "x": 640, "y": 360, "reason": "…"}                — screenshot pixels, when no element fits
@@ -98,7 +103,7 @@ also "double_click", "right_click", "move" (same fields);
 {"action": "drag", "element"|"x","y": …, "to_element"|"to_x","to_y": …, "reason": "…"}
 {"action": "scroll", "x": 640, "y": 360, "direction": "down", "amount": 5, "reason": "…"}   (amount = wheel notches)
 {"action": "type", "text": "…", "reason": "…"}                        — types into the focused field (click it first)
-{"action": "key", "keys": "ctrl+s", "reason": "…"}                    — enter, esc, tab, alt+tab, win, ctrl+l, f5…
+{"action": "key", "keys": "${PLATFORM === 'macos' ? 'cmd' : 'ctrl'}+s", "reason": "…"}                    — ${KEY_EXAMPLES}
 {"action": "wait", "seconds": 2, "reason": "…"}                       — for loading pages or apps
 {"action": "done", "summary": "…"}                                    — the goal is reached (check the screenshot)
 {"action": "ask_user", "question": "…"}                               — BEFORE anything irreversible or sensitive: sending a message or email, buying or paying, deleting, submitting a form, installing, changing security settings — or when the goal is ambiguous

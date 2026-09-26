@@ -19,7 +19,9 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 # tray-icon: Iris keeps running in the notification area when its window is closed.
-tauri = { version = "2", features = ["tray-icon"] }
+# macos-private-api: the mini window's transparent background on macOS (with
+# `app.macOSPrivateApi` in tauri.conf.json; the two must match).
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-opener = "2"
 tauri-plugin-log = "2"
 # Encrypted API-key vault (AES/XChaCha snapshot), used from the frontend.
@@ -50,7 +52,7 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 trash = "5"
 # Ctrl+Shift+J from anywhere shows / hides Iris.
 tauri-plugin-global-shortcut = "2"
-# Settings → "Lancer Iris au démarrage de Windows" (off by default); started that way, he waits in the tray.
+# Settings → "Start Iris with Windows / macOS / Linux" (off by default); started that way, she waits in the tray.
 tauri-plugin-autostart = "2"
 # "What am I looking at?": screenshot of the screen under the mouse, shrunk and JPEG-encoded.
 xcap = "0.9"
@@ -69,6 +71,15 @@ windows = { version = "0.62", features = [
     "Win32_Graphics_Gdi",
     "Win32_Graphics_Dwm",
 ] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# The webview's microphone and WebRTC (WebKitGTK refuses them unless asked): the same
+# version and features as Tauri's own (wry).
+webkit2gtk = { version = "=2.0.2", features = ["v2_38"] }
+
+[target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies]
+# Computer use on Linux / BSD: listing and managing windows through the window manager (EWMH).
+x11rb = "0.13"
 
 # Optimize dependencies even in dev builds. Stronghold encrypts its vault with scrypt
 # (deliberately expensive); unoptimized, every vault open/save took tens of seconds.

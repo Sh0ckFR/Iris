@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- iOS refuses microphone access (and kills the app) without this usage string. -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Iris listens to your voice commands.</string>
+  <!-- Keep listening and speaking while the screen is locked or another app is in front. -->
+  <key>UIBackgroundModes</key>
+  <array>
+    <string>audio</string>
+  </array>
+</dict>
+</plist>

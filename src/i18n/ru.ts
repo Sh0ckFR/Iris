@@ -33,7 +33,7 @@ export const ru: Messages = {
     dropTitle: 'Перетащите документы, чтобы проанализировать их',
     dropFormats: 'PDF · Word · изображения · текст',
     showPanelAgain: 'Снова показать эту панель',
-    panels: { conversation: 'Разговор', knowledge: 'Знания', dashboard: 'Панель' },
+    panels: { conversation: 'Разговор', knowledge: 'Знания', dashboard: 'Панель', briefing: 'Карточки', visual: 'Визуал' },
     panelHeaderHint: 'Перетащите для перемещения · двойной щелчок для сброса',
     modelBadgeTitle: 'Модель, которая отвечает на ваши вопросы',
     noModel: 'Нет модели — добавьте ключ в настройках',
@@ -491,8 +491,8 @@ export const ru: Messages = {
       firstName: 'Имя',
       bootGreeting: 'Голосовое приветствие со статусом при запуске',
       uiSounds: 'Звуки интерфейса',
-      launchAtStartup:
-        'Запускать Iris вместе с Windows — она ждёт в области уведомлений (мини-окно), готовая слушать и выполнять запланированные напоминания.',
+      launchAtStartup: (os: string) =>
+        `Запускать Iris вместе с ${os} — она ждёт в области уведомлений (мини-окно), готовая слушать и выполнять запланированные напоминания.`,
     },
   },
 };

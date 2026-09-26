@@ -39,7 +39,7 @@ export const fr: Messages = {
     dropTitle: 'Déposez vos documents pour les analyser',
     dropFormats: 'PDF · Word · images · texte',
     showPanelAgain: 'Réafficher ce panneau',
-    panels: { conversation: 'Conversation', knowledge: 'Connaissances', dashboard: 'Tableau de bord' },
+    panels: { conversation: 'Conversation', knowledge: 'Connaissances', dashboard: 'Tableau de bord', briefing: 'Fiches', visual: 'Visuel' },
     panelHeaderHint: 'Glisser pour déplacer · double-clic pour réinitialiser',
     modelBadgeTitle: 'Modèle qui répond à vos questions',
     noModel: 'Aucun modèle — ajoutez une clé dans les réglages',
@@ -542,8 +542,8 @@ export const fr: Messages = {
       firstName: 'Prénom',
       bootGreeting: 'Message vocal d’état au démarrage',
       uiSounds: 'Sons de l’interface',
-      launchAtStartup:
-        'Lancer Iris au démarrage de Windows — elle attend alors dans la zone de notification (mini fenêtre), prête à écouter et à tenir ses rappels programmés.',
+      launchAtStartup: (os: string) =>
+        `Lancer Iris au démarrage de ${os} — elle attend alors dans la zone de notification (mini fenêtre), prête à écouter et à tenir ses rappels programmés.`,
     },
   },
 };

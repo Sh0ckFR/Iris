@@ -45,7 +45,7 @@ export const en = {
     dropTitle: 'Drop your documents to analyse them',
     dropFormats: 'PDF · Word · images · text',
     showPanelAgain: 'Show this panel again',
-    panels: { conversation: 'Conversation', knowledge: 'Knowledge', dashboard: 'Dashboard' },
+    panels: { conversation: 'Conversation', knowledge: 'Knowledge', dashboard: 'Dashboard', briefing: 'Cards', visual: 'Visual' },
     panelHeaderHint: 'Drag to move · double-click to reset',
     modelBadgeTitle: 'Model answering your questions',
     noModel: 'No model — add a key in Settings',
@@ -549,7 +549,7 @@ export const en = {
       firstName: 'First name',
       bootGreeting: 'Spoken status greeting at startup',
       uiSounds: 'Interface sounds',
-      launchAtStartup: 'Start Iris with Windows — she then waits in the notification area (mini window), ready to listen and keep her scheduled reminders.',
+      launchAtStartup: (os: string) => `Start Iris with ${os} — she then waits in the notification area (mini window), ready to listen and keep her scheduled reminders.`,
     },
   },
 };

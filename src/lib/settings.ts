@@ -45,7 +45,7 @@ export interface Settings {
    * empty — the previous conversation is archived (recall_memory still finds it when asked).
    */
   resumeConversation: boolean;
-  /** Start Iris with Windows, straight in the tray (off by default). */
+  /** Start Iris at login (Windows, macOS, Linux), straight in the tray (off by default). */
   launchAtStartup: boolean;
   /**
    * Talking while Iris speaks cuts her off, without saying her name: she pauses at once and

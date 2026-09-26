@@ -7,6 +7,7 @@ import { hasRealtime, mediaProvider } from '../../lib/providers';
 import { knowledgeStore } from '../../lib/knowledge';
 import { announceSentence } from '../../lib/narration';
 import { MINI_LEVEL_EVENT } from '../../lib/miniWindow';
+import { DESKTOP_ONLY_TOOLS, IS_MOBILE } from '../../lib/platform';
 import { isPanelHidden, setPanelHidden } from '../hud/panelVisibility';
 import { brainChain, describeError, streamReply, systemPrompt, toolGuidance, turnContext, VOICE_NOTE, type BrainRole } from './llm';
 import { definitionTokens, groupOf, selectTools, type ToolGroup } from './toolGroups';
@@ -497,6 +498,8 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
             generate(SCREEN_SYSTEM, [{ type: 'text', text: question }, { type: 'image', image: jpeg, mediaType: 'image/jpeg' }], signal),
         }),
       };
+      // Phones and tablets don't let an app drive other apps, the screen or the volume.
+      if (IS_MOBILE) for (const name of DESKTOP_ONLY_TOOLS) delete builtin[name];
       // Skills Iris created for itself (installed with the user's approval) + create/run_skill.
       const skills = createSkillTools(osHooks, fr, new Set(Object.keys(builtin)));
       // External services (MCP): what changes data asks first, like the computer actions.

@@ -21,13 +21,18 @@ fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
+/// The user's home folder; on a phone, where apps have none, the app's own data folder.
+fn home_dir(app: &AppHandle) -> CmdResult<PathBuf> {
+    app.path().home_dir().or_else(|_| app.path().app_data_dir()).map_err(err)
+}
+
 /// Expands `~` and requires an absolute path, so the model can't act relative to some
 /// unknown working directory.
 fn resolve(app: &AppHandle, raw: &str) -> CmdResult<PathBuf> {
     let raw = normalize_separators(raw.trim().trim_matches('"'));
     let raw = raw.as_str();
     let path = if raw == "~" || raw.starts_with("~/") || raw.starts_with("~\\") {
-        app.path().home_dir().map_err(err)?.join(raw[1..].trim_start_matches(['/', '\\']))
+        home_dir(app)?.join(raw[1..].trim_start_matches(['/', '\\']))
     } else {
         PathBuf::from(raw)
     };
@@ -62,27 +67,59 @@ fn normalize_separators(raw: &str) -> String {
     out
 }
 
+/// OS and program folders Iris never modifies, lower-case with `/` separators.
+fn protected_locations() -> Vec<String> {
+    let mut list: Vec<String> = [
+        // Windows (also found from the environment below, whatever the system drive).
+        "c:/windows",
+        "c:/program files",
+        "c:/program files (x86)",
+        "c:/programdata",
+        // macOS
+        "/system",
+        "/library",
+        "/applications",
+        "/private/etc",
+        "/private/var/db",
+        // Linux and other Unix systems
+        "/usr",
+        "/bin",
+        "/sbin",
+        "/lib",
+        "/lib32",
+        "/lib64",
+        "/etc",
+        "/boot",
+        "/proc",
+        "/sys",
+        "/dev",
+        "/snap",
+        "/var/lib",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    #[cfg(windows)]
+    for var in ["SystemRoot", "windir", "ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "ProgramData"] {
+        if let Some(dir) = std::env::var_os(var) {
+            let dir = dir.to_string_lossy().to_lowercase().replace('\\', "/");
+            let dir = dir.trim_end_matches('/').to_string();
+            if !dir.is_empty() && !list.contains(&dir) {
+                list.push(dir);
+            }
+        }
+    }
+    list
+}
+
 /// Refuses to modify the filesystem root, the home folder itself, or OS/program folders.
 fn guard_mutation(app: &AppHandle, path: &Path) -> CmdResult<()> {
-    let home = app.path().home_dir().map_err(err)?;
+    let home = home_dir(app)?;
     if path.parent().is_none() || path == home {
         return Err(format!("refusing to modify {}", path.display()));
     }
     let lower = path.to_string_lossy().to_lowercase().replace('\\', "/");
-    const PROTECTED: &[&str] = &[
-        "c:/windows",
-        "c:/program files",
-        "c:/programdata",
-        "/system",
-        "/library",
-        "/usr",
-        "/bin",
-        "/sbin",
-        "/etc",
-        "/boot",
-        "/applications",
-    ];
-    if PROTECTED.iter().any(|p| lower == *p || lower.starts_with(&format!("{p}/"))) {
+    if protected_locations().iter().any(|p| lower == *p || lower.starts_with(&format!("{p}/"))) {
         return Err(format!("{} is a system location; Iris won't modify it", path.display()));
     }
     Ok(())
@@ -124,42 +161,82 @@ fn normalize(s: &str) -> String {
         .collect()
 }
 
-/// Built-in tools users ask for by their French or English name.
-fn builtin_alias(name: &str) -> Option<&'static str> {
+/// Built-in tools users ask for by their French or English name. On Linux each alias lists the
+/// usual programs of the different desktops (GNOME, KDE, Xfce, Cinnamon, MATE…), first found wins.
+fn builtin_alias(name: &str) -> Option<&'static [&'static str]> {
     let n = normalize(name);
-    let pairs: &[(&[&str], &str)] = if cfg!(windows) {
+    let pairs: &[(&[&str], &[&str])] = if cfg!(windows) {
         &[
-            (&["calculatrice", "calculator", "calc"], "calc"),
-            (&["blocnotes", "notepad"], "notepad"),
-            (&["parametres", "settings", "reglages"], "ms-settings:"),
-            (&["explorateur", "explorer", "fileexplorer", "explorateurdefichiers"], "explorer"),
-            (&["gestionnairedestaches", "taskmanager", "taskmgr"], "taskmgr"),
-            (&["paint"], "mspaint"),
-            (&["terminal", "windowsterminal"], "wt"),
-            (&["invitedecommandes", "cmd", "commandprompt"], "cmd"),
-            (&["powershell"], "powershell"),
+            (&["calculatrice", "calculator", "calc"], &["calc"]),
+            (&["blocnotes", "notepad"], &["notepad"]),
+            (&["parametres", "settings", "reglages"], &["ms-settings:"]),
+            (&["explorateur", "explorer", "fileexplorer", "explorateurdefichiers"], &["explorer"]),
+            (&["gestionnairedestaches", "taskmanager", "taskmgr"], &["taskmgr"]),
+            (&["paint"], &["mspaint"]),
+            (&["terminal", "windowsterminal"], &["wt"]),
+            (&["invitedecommandes", "cmd", "commandprompt"], &["cmd"]),
+            (&["powershell"], &["powershell"]),
         ]
     } else if cfg!(target_os = "macos") {
         &[
-            (&["calculatrice", "calculator"], "Calculator"),
-            (&["blocnotes", "notes"], "Notes"),
-            (&["parametres", "settings", "reglages", "preferencessysteme"], "System Settings"),
-            (&["explorateur", "finder"], "Finder"),
-            (&["terminal"], "Terminal"),
+            (&["calculatrice", "calculator", "calc"], &["Calculator"]),
+            (&["blocnotes", "notepad", "textedit", "editeurdetexte", "texteditor"], &["TextEdit"]),
+            (&["notes"], &["Notes"]),
+            (
+                &["parametres", "settings", "reglages", "preferencessysteme", "systemsettings", "systempreferences"],
+                &["System Settings", "System Preferences"],
+            ),
+            (&["explorateur", "explorer", "fileexplorer", "explorateurdefichiers", "finder"], &["Finder"]),
+            (&["gestionnairedestaches", "taskmanager", "taskmgr", "moniteurdactivite", "activitymonitor"], &["Activity Monitor"]),
+            (&["terminal", "invitedecommandes", "cmd", "commandprompt", "powershell"], &["Terminal"]),
+            (&["paint"], &["Preview"]),
         ]
     } else {
-        &[]
+        &[
+            (&["calculatrice", "calculator", "calc"], &["gnome-calculator", "kcalc", "galculator", "qalculate-gtk", "mate-calc", "xcalc"]),
+            (
+                &["blocnotes", "notepad", "editeurdetexte", "texteditor"],
+                &["gnome-text-editor", "gedit", "kate", "kwrite", "mousepad", "xed", "pluma", "featherpad", "leafpad"],
+            ),
+            (
+                &["parametres", "settings", "reglages"],
+                &["gnome-control-center", "systemsettings", "xfce4-settings-manager", "cinnamon-settings", "mate-control-center", "lxqt-config"],
+            ),
+            (
+                &["explorateur", "explorer", "fileexplorer", "explorateurdefichiers", "fichiers", "files"],
+                &["nautilus", "dolphin", "thunar", "nemo", "caja", "pcmanfm", "pcmanfm-qt"],
+            ),
+            (
+                &["gestionnairedestaches", "taskmanager", "taskmgr", "moniteursysteme", "systemmonitor"],
+                &["gnome-system-monitor", "plasma-systemmonitor", "ksysguard", "xfce4-taskmanager", "mate-system-monitor", "lxtask"],
+            ),
+            (
+                &["terminal", "invitedecommandes", "cmd", "commandprompt", "console"],
+                &["x-terminal-emulator", "gnome-terminal", "kgx", "konsole", "xfce4-terminal", "mate-terminal", "tilix", "kitty", "alacritty", "xterm"],
+            ),
+            (&["paint"], &["kolourpaint", "pinta", "drawing", "gimp"]),
+        ]
     };
-    pairs.iter().find(|(names, _)| names.contains(&n.as_str())).map(|(_, target)| *target)
+    pairs.iter().find(|(names, _)| names.contains(&n.as_str())).map(|(_, targets)| *targets)
 }
 
-/// Finds a Start Menu shortcut (Windows) or .desktop entry (Linux) whose name matches.
-#[cfg(any(windows, target_os = "linux"))]
-fn find_installed_app(app: &AppHandle, name: &str) -> Option<PathBuf> {
-    let wanted = normalize(name);
-    if wanted.is_empty() {
-        return None;
+/// Score of an installed app against the wanted name: exact 3, starts with 2, contains 1.
+fn match_score(candidate: &str, wanted: &str) -> u8 {
+    if candidate == wanted {
+        3
+    } else if candidate.starts_with(wanted) {
+        2
+    } else if !wanted.is_empty() && candidate.contains(wanted) {
+        1
+    } else {
+        0
     }
+}
+
+/// Folders holding installed apps: Start Menu shortcuts (Windows), .desktop entries (Linux,
+/// Flatpak and Snap included), application bundles (macOS).
+#[cfg(desktop)]
+fn app_roots(app: &AppHandle) -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = Vec::new();
     #[cfg(windows)]
     {
@@ -173,62 +250,173 @@ fn find_installed_app(app: &AppHandle, name: &str) -> Option<PathBuf> {
             roots.push(desktop);
         }
     }
-    #[cfg(target_os = "linux")]
+    #[cfg(target_os = "macos")]
     {
-        roots.push(PathBuf::from("/usr/share/applications"));
+        for dir in ["/Applications", "/System/Applications", "/System/Applications/Utilities", "/Applications/Utilities"] {
+            roots.push(PathBuf::from(dir));
+        }
         if let Ok(home) = app.path().home_dir() {
-            roots.push(home.join(".local/share/applications"));
+            roots.push(home.join("Applications"));
         }
     }
-    #[cfg(not(windows))]
-    let _ = app;
+    #[cfg(target_os = "linux")]
+    {
+        let home = app.path().home_dir().ok();
+        let data_home = std::env::var_os("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .or_else(|| home.as_ref().map(|h| h.join(".local/share")));
+        if let Some(dir) = data_home {
+            roots.push(dir.join("applications"));
+        }
+        let data_dirs = std::env::var("XDG_DATA_DIRS").unwrap_or_default();
+        let data_dirs = if data_dirs.trim().is_empty() { "/usr/local/share:/usr/share".to_string() } else { data_dirs };
+        for dir in data_dirs.split(':').filter(|d| !d.is_empty()) {
+            roots.push(PathBuf::from(dir).join("applications"));
+        }
+        roots.push(PathBuf::from("/var/lib/flatpak/exports/share/applications"));
+        roots.push(PathBuf::from("/var/lib/snapd/desktop/applications"));
+        if let Some(home) = &home {
+            roots.push(home.join(".local/share/flatpak/exports/share/applications"));
+        }
+        roots.dedup();
+    }
+    roots
+}
 
-    // Score: exact name 3, starts with 2, contains 1. Shorter names win ties ("Word" over "Word Viewer").
+/// The names an installed app answers to, normalized: its file name, and on Linux the
+/// `Name=` of its .desktop entry in every language ("Calculatrice", "Rechner"…) and its
+/// generic name ("Calculator"). None when the entry is not a visible application.
+#[cfg(desktop)]
+fn app_names(path: &Path) -> Option<Vec<String>> {
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    let mut names = vec![normalize(stem)];
+    #[cfg(target_os = "linux")]
+    {
+        let text = std::fs::read_to_string(path).ok()?;
+        let mut in_entry = false;
+        for line in text.lines() {
+            let line = line.trim();
+            if line.starts_with('[') {
+                in_entry = line == "[Desktop Entry]";
+                continue;
+            }
+            if !in_entry {
+                continue;
+            }
+            let Some((key, value)) = line.split_once('=') else { continue };
+            let key = key.trim();
+            let base = key.split('[').next().unwrap_or(key);
+            match base {
+                "Name" | "GenericName" => names.push(normalize(value)),
+                "NoDisplay" | "Hidden" if value.trim() == "true" => return None,
+                "Type" if value.trim() != "Application" => return None,
+                _ => {}
+            }
+        }
+    }
+    names.retain(|n| !n.is_empty());
+    Some(names)
+}
+
+/// Finds the installed app whose name matches best.
+#[cfg(desktop)]
+fn find_installed_app(app: &AppHandle, name: &str) -> Option<PathBuf> {
+    let wanted = normalize(name);
+    if wanted.is_empty() {
+        return None;
+    }
+    // Shorter names win ties ("Word" over "Word Viewer").
     let mut best: Option<(u8, usize, PathBuf)> = None;
-    let mut stack = roots;
+    let mut stack = app_roots(app);
     let mut visited = 0;
     while let Some(dir) = stack.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else { continue };
         for entry in entries.flatten() {
             visited += 1;
-            if visited > 5000 {
+            if visited > 8000 {
                 break;
             }
             let path = entry.path();
-            if path.is_dir() {
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            // A macOS application is a folder: the app itself, not something to look into.
+            let bundle = cfg!(target_os = "macos") && ext == "app";
+            if path.is_dir() && !bundle {
                 stack.push(path);
                 continue;
             }
-            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-            if !matches!(ext.as_str(), "lnk" | "url" | "appref-ms" | "desktop") {
+            if !bundle && !matches!(ext.as_str(), "lnk" | "url" | "appref-ms" | "desktop") {
                 continue;
             }
-            let stem = normalize(path.file_stem().and_then(|s| s.to_str()).unwrap_or(""));
-            if stem.contains("uninstall") || stem.contains("desinstall") {
+            let Some(names) = app_names(&path) else { continue };
+            if names.iter().any(|n| n.contains("uninstall") || n.contains("desinstall")) {
                 continue;
             }
-            let score = if stem == wanted {
-                3
-            } else if stem.starts_with(&wanted) {
-                2
-            } else if stem.contains(&wanted) {
-                1
-            } else {
-                0
+            let Some((score, len)) = names.iter().map(|n| (match_score(n, &wanted), n.len())).filter(|(s, _)| *s > 0).max_by_key(|(s, len)| (*s, usize::MAX - len))
+            else {
+                continue;
             };
-            if score == 0 {
-                continue;
-            }
             let better = match &best {
                 None => true,
-                Some((s, len, _)) => score > *s || (score == *s && stem.len() < *len),
+                Some((s, l, _)) => score > *s || (score == *s && len < *l),
             };
             if better {
-                best = Some((score, stem.len(), path));
+                best = Some((score, len, path));
             }
         }
     }
     best.map(|(_, _, p)| p)
+}
+
+/// A program of that name is on the PATH.
+#[cfg(target_os = "linux")]
+fn in_path(program: &str) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::env::var_os("PATH")
+        .map(|paths| {
+            std::env::split_paths(&paths).any(|dir| {
+                std::fs::metadata(dir.join(program)).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false)
+            })
+        })
+        .unwrap_or(false)
+}
+
+/// Starts a .desktop entry the way the desktop does: `gtk-launch`, `gio launch`, or its `Exec=`
+/// line (field codes such as %U removed). The entry comes from the system, not from the model.
+#[cfg(target_os = "linux")]
+fn launch_desktop_entry(entry: &Path) -> CmdResult<()> {
+    use std::process::{Command, Stdio};
+    let quiet = |c: &mut Command| {
+        c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    };
+    let id = entry.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut gtk = Command::new("gtk-launch");
+    gtk.arg(&id);
+    quiet(&mut gtk);
+    if gtk.status().map(|s| s.success()).unwrap_or(false) {
+        return Ok(());
+    }
+    let mut gio = Command::new("gio");
+    gio.arg("launch").arg(entry);
+    quiet(&mut gio);
+    if gio.status().map(|s| s.success()).unwrap_or(false) {
+        return Ok(());
+    }
+    let text = std::fs::read_to_string(entry).map_err(err)?;
+    let exec = text
+        .lines()
+        .skip_while(|l| l.trim() != "[Desktop Entry]")
+        .find_map(|l| l.trim().strip_prefix("Exec="))
+        .ok_or_else(|| format!("{id} has no command to run"))?;
+    let command: String = exec
+        .split_whitespace()
+        .filter(|part| !(part.len() == 2 && part.starts_with('%')))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut sh = Command::new("sh");
+    sh.args(["-c", &command]);
+    quiet(&mut sh);
+    sh.spawn().map_err(err)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -240,7 +428,7 @@ pub async fn os_open_app(app: AppHandle, name: String) -> CmdResult<String> {
 
     #[cfg(windows)]
     {
-        if let Some(target) = builtin_alias(name) {
+        if let Some(target) = builtin_alias(name).and_then(|t| t.first()) {
             launch_windows(target)?;
             return Ok(format!("Launched {target}"));
         }
@@ -256,32 +444,54 @@ pub async fn os_open_app(app: AppHandle, name: String) -> CmdResult<String> {
 
     #[cfg(target_os = "macos")]
     {
-        let _ = &app;
-        let target = builtin_alias(name).unwrap_or(name);
-        let status = std::process::Command::new("open").args(["-a", target]).status().map_err(err)?;
-        if status.success() {
-            Ok(format!("Launched {target}"))
+        let open = |target: &str| -> bool {
+            std::process::Command::new("open")
+                .args(["-a", target])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        };
+        for &target in builtin_alias(name).unwrap_or(&[]) {
+            if open(target) {
+                return Ok(format!("Launched {target}"));
+            }
+        }
+        if let Some(bundle) = find_installed_app(&app, name) {
+            if open(bundle.to_string_lossy().as_ref()) {
+                let label = bundle.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+                return Ok(format!("Launched {label}"));
+            }
+        }
+        // Last resort: let macOS resolve the name itself.
+        if open(name) {
+            Ok(format!("Launched {name}"))
         } else {
-            Err(format!("no application named \"{target}\" was found"))
+            Err(format!("no application named \"{name}\" was found"))
         }
     }
 
     #[cfg(target_os = "linux")]
     {
-        let _ = builtin_alias;
         if let Some(entry) = find_installed_app(&app, name) {
-            let id = entry.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-            std::process::Command::new("gtk-launch").arg(&id).spawn().map_err(err)?;
+            launch_desktop_entry(&entry)?;
+            let id = entry.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
             return Ok(format!("Launched {id}"));
         }
+        if let Some(program) = builtin_alias(name).and_then(|list| list.iter().find(|p| in_path(p))) {
+            std::process::Command::new(program).spawn().map_err(err)?;
+            return Ok(format!("Launched {program}"));
+        }
+        // A program name as typed ("firefox", "code"…): run directly, never through a shell.
         std::process::Command::new(name).spawn().map_err(|_| format!("no application named \"{name}\" was found"))?;
         Ok(format!("Launched {name}"))
     }
 
     #[cfg(mobile)]
     {
-        let _ = (&app, builtin_alias);
-        Err("launching apps is not supported on this platform".into())
+        let _ = (&app, builtin_alias, match_score);
+        Err("opening other apps by name is not available on a phone or tablet; open a website or a file instead".into())
     }
 }
 
@@ -340,17 +550,45 @@ pub async fn os_volume(action: String, steps: u32) -> CmdResult<String> {
             "mute" => "set volume output muted not (output muted of (get volume settings))".to_string(),
             _ => return Err(format!("unknown volume action \"{action}\"")),
         };
-        std::process::Command::new("osascript").args(["-e", &script]).status().map_err(err)?;
+        let status = std::process::Command::new("osascript").args(["-e", &script]).status().map_err(err)?;
+        if !status.success() {
+            return Err("could not change the volume".into());
+        }
     }
     #[cfg(target_os = "linux")]
     {
-        let args: Vec<String> = match action.as_str() {
-            "up" => vec!["set-sink-volume".into(), "@DEFAULT_SINK@".into(), format!("+{}%", steps * 2)],
-            "down" => vec!["set-sink-volume".into(), "@DEFAULT_SINK@".into(), format!("-{}%", steps * 2)],
-            "mute" => vec!["set-sink-mute".into(), "@DEFAULT_SINK@".into(), "toggle".into()],
+        // PulseAudio / PipeWire (pactl), PipeWire alone (wpctl), then ALSA (amixer).
+        let pct = steps * 2;
+        let attempts: Vec<(&str, Vec<String>)> = match action.as_str() {
+            "up" => vec![
+                ("pactl", vec!["set-sink-volume".into(), "@DEFAULT_SINK@".into(), format!("+{pct}%")]),
+                ("wpctl", vec!["set-volume".into(), "-l".into(), "1.0".into(), "@DEFAULT_AUDIO_SINK@".into(), format!("{pct}%+")]),
+                ("amixer", vec!["-q".into(), "sset".into(), "Master".into(), format!("{pct}%+"), "unmute".into()]),
+            ],
+            "down" => vec![
+                ("pactl", vec!["set-sink-volume".into(), "@DEFAULT_SINK@".into(), format!("-{pct}%")]),
+                ("wpctl", vec!["set-volume".into(), "@DEFAULT_AUDIO_SINK@".into(), format!("{pct}%-")]),
+                ("amixer", vec!["-q".into(), "sset".into(), "Master".into(), format!("{pct}%-")]),
+            ],
+            "mute" => vec![
+                ("pactl", vec!["set-sink-mute".into(), "@DEFAULT_SINK@".into(), "toggle".into()]),
+                ("wpctl", vec!["set-mute".into(), "@DEFAULT_AUDIO_SINK@".into(), "toggle".into()]),
+                ("amixer", vec!["-q".into(), "sset".into(), "Master".into(), "toggle".into()]),
+            ],
             _ => return Err(format!("unknown volume action \"{action}\"")),
         };
-        std::process::Command::new("pactl").args(&args).status().map_err(err)?;
+        let changed = attempts.iter().any(|(program, args)| {
+            std::process::Command::new(program)
+                .args(args)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        });
+        if !changed {
+            return Err("could not change the volume (none of pactl, wpctl or amixer worked)".into());
+        }
     }
     #[cfg(mobile)]
     {
@@ -469,10 +707,12 @@ pub async fn os_trash(app: AppHandle, path: String) -> CmdResult<String> {
     #[cfg(desktop)]
     {
         trash::delete(&path).map_err(err)?;
-        Ok(format!("Moved {} to the Recycle Bin", path.display()))
+        let bin = if cfg!(windows) { "the Recycle Bin" } else { "the Trash" };
+        Ok(format!("Moved {} to {bin}", path.display()))
     }
+    // Phones have no trash to restore from: Iris refuses rather than erase for good.
     #[cfg(mobile)]
-    Err("deleting files is not supported on this platform".into())
+    Err("this device has no trash to move files to, so Iris won't delete them".into())
 }
 
 // ------------------------------------------------------------------ shell
@@ -525,7 +765,7 @@ pub async fn run_skill_script(app: AppHandle, script: String, args: HashMap<Stri
 }
 
 async fn run_shell(app: &AppHandle, command: &str, env: &HashMap<String, String>) -> CmdResult<CommandOutput> {
-    let home = app.path().home_dir().map_err(err)?;
+    let home = home_dir(app)?;
 
     #[cfg(windows)]
     let mut cmd = {
@@ -688,8 +928,8 @@ pub async fn save_image(app: AppHandle, base64_data: String, extension: String) 
     let dir = app
         .path()
         .picture_dir()
-        .or_else(|_| app.path().home_dir())
-        .map_err(err)?
+        .map_err(err)
+        .or_else(|_| home_dir(&app))?
         .join("Iris");
     std::fs::create_dir_all(&dir).map_err(err)?;
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
@@ -719,8 +959,8 @@ pub async fn save_visual(app: AppHandle, name: String, extension: String, conten
     let dir = app
         .path()
         .document_dir()
-        .or_else(|_| app.path().home_dir())
-        .map_err(err)?
+        .map_err(err)
+        .or_else(|_| home_dir(&app))?
         .join("Iris");
     std::fs::create_dir_all(&dir).map_err(err)?;
     let mut path = dir.join(format!("{stem}.{ext}"));
@@ -762,6 +1002,57 @@ pub fn mark_app_start() {
     std::sync::LazyLock::force(&APP_START);
 }
 
+/// macOS and Linux: an app opened from the Dock, Finder or an app menu inherits a minimal PATH
+/// (`/usr/bin:/bin:…`), without Homebrew, nvm, ~/.local/bin… Asks the user's login shell for
+/// its PATH (at most 3 s) and puts it first, so programs resolve as in a terminal. Windows
+/// already gives every app the user's PATH.
+pub fn adopt_login_shell_path() {
+    #[cfg(all(unix, desktop))]
+    {
+        use std::io::Read;
+        use std::process::{Command, Stdio};
+        let shell = std::env::var("SHELL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| {
+            if cfg!(target_os = "macos") { "/bin/zsh".into() } else { "/bin/sh".into() }
+        });
+        // `env` rather than `echo $PATH`: the same output whatever the shell (fish lists PATH).
+        let Ok(mut child) = Command::new(&shell)
+            .args(["-l", "-c", "/usr/bin/env"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+        else {
+            return;
+        };
+        let deadline = std::time::Instant::now() + Duration::from_secs(3);
+        loop {
+            match child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) if std::time::Instant::now() < deadline => std::thread::sleep(Duration::from_millis(30)),
+                _ => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    log::warn!("the login shell took too long; keeping the default PATH");
+                    return;
+                }
+            }
+        }
+        let mut out = String::new();
+        if let Some(mut stdout) = child.stdout.take() {
+            let _ = stdout.read_to_string(&mut out);
+        }
+        let Some(login_path) = out.lines().find_map(|l| l.strip_prefix("PATH=")) else { return };
+        let mut dirs: Vec<String> = login_path.split(':').filter(|d| !d.is_empty()).map(String::from).collect();
+        for dir in std::env::var("PATH").unwrap_or_default().split(':') {
+            if !dir.is_empty() && !dirs.iter().any(|d| d == dir) {
+                dirs.push(dir.to_string());
+            }
+        }
+        // Called before any other thread starts (first thing in `run`).
+        std::env::set_var("PATH", dirs.join(":"));
+    }
+}
+
 #[tauri::command]
 pub async fn system_stats(state: tauri::State<'_, TelemetryState>) -> CmdResult<SystemStats> {
     let mut sys = state.0.lock().map_err(err)?;
@@ -797,9 +1088,29 @@ mod tests {
         assert_eq!(normalize("Paramètres"), "parametres");
         assert_eq!(normalize("Visual Studio Code"), "visualstudiocode");
         if cfg!(windows) {
-            assert_eq!(builtin_alias("calculatrice"), Some("calc"));
-            assert_eq!(builtin_alias("Gestionnaire des tâches"), Some("taskmgr"));
-            assert_eq!(builtin_alias("Zephyr Player"), None);
+            assert_eq!(builtin_alias("calculatrice"), Some(&["calc"][..]));
+            assert_eq!(builtin_alias("Gestionnaire des tâches"), Some(&["taskmgr"][..]));
+        } else if cfg!(target_os = "macos") {
+            assert_eq!(builtin_alias("Gestionnaire des tâches"), Some(&["Activity Monitor"][..]));
+        } else {
+            assert!(builtin_alias("calculatrice").is_some_and(|list| list.contains(&"gnome-calculator")));
+        }
+        assert_eq!(builtin_alias("Zephyr Player"), None);
+    }
+
+    #[test]
+    fn app_names_score_exact_prefix_then_contains() {
+        assert_eq!(match_score("calculatrice", "calculatrice"), 3);
+        assert_eq!(match_score("calculatricescientifique", "calculatrice"), 2);
+        assert_eq!(match_score("gnomecalculatrice", "calculatrice"), 1);
+        assert_eq!(match_score("notes", "calculatrice"), 0);
+    }
+
+    #[test]
+    fn system_folders_are_protected() {
+        let list = protected_locations();
+        for p in ["c:/windows", "/usr", "/system", "/applications", "/etc"] {
+            assert!(list.iter().any(|l| l == p), "{p} should be protected");
         }
     }
 
@@ -845,7 +1156,7 @@ pub async fn os_context(app: AppHandle) -> CmdResult<SystemContext> {
     Ok(SystemContext {
         os: std::env::consts::OS.to_string(),
         user: std::env::var("USERNAME").or_else(|_| std::env::var("USER")).unwrap_or_default(),
-        home: p.home_dir().map_err(err)?.to_string_lossy().into_owned(),
+        home: home_dir(&app)?.to_string_lossy().into_owned(),
         desktop: s(p.desktop_dir()),
         documents: s(p.document_dir()),
         downloads: s(p.download_dir()),

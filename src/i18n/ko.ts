@@ -30,7 +30,7 @@ export const ko: Messages = {
     dropTitle: '문서를 끌어다 놓아 분석하세요',
     dropFormats: 'PDF · Word · 이미지 · 텍스트',
     showPanelAgain: '이 패널 다시 표시',
-    panels: { conversation: '대화', knowledge: '지식', dashboard: '대시보드' },
+    panels: { conversation: '대화', knowledge: '지식', dashboard: '대시보드', briefing: '카드', visual: '비주얼' },
     panelHeaderHint: '끌어서 이동 · 두 번 클릭해 초기화',
     modelBadgeTitle: '질문에 답하는 모델',
     noModel: '모델 없음 — 설정에서 키를 추가하세요',
@@ -477,7 +477,7 @@ export const ko: Messages = {
       firstName: '이름',
       bootGreeting: '시작할 때 상태 인사 음성',
       uiSounds: '인터페이스 소리',
-      launchAtStartup: 'Windows와 함께 Iris 시작 — 알림 영역(미니 창)에서 대기하며 언제든 듣고 예약된 알림을 지킵니다.',
+      launchAtStartup: (os: string) => `${os}와 함께 Iris 시작 — 알림 영역(미니 창)에서 대기하며 언제든 듣고 예약된 알림을 지킵니다.`,
     },
   },
 };

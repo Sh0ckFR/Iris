@@ -34,6 +34,10 @@ interface GlassPanelProps {
   bounds: RefObject<HTMLElement | null>;
   actions?: ReactNode;
   delay?: number;
+  /** Compact layout (phones, small windows): the panel fills the free area, no dragging. */
+  compact?: boolean;
+  /** Compact layout: another panel is on screen; this one stays mounted but hidden. */
+  offstage?: boolean;
   children: ReactNode;
 }
 
@@ -42,7 +46,7 @@ interface GlassPanelProps {
  * moves it, the panel keeps its default CSS placement; afterwards its geometry is explicit and
  * remembered. Double-click the header to restore the default layout.
  */
-export function GlassPanel({ id, title, className = '', bounds, actions, delay = 0, children }: GlassPanelProps) {
+export function GlassPanel({ id, title, className = '', bounds, actions, delay = 0, compact = false, offstage = false, children }: GlassPanelProps) {
   const panel = useRef<HTMLElement>(null);
   const [geo, setGeo] = useState<Geometry | null>(() => loadGeometry(id));
   const [interacting, setInteracting] = useState<'move' | 'resize' | null>(null);
@@ -91,7 +95,7 @@ export function GlassPanel({ id, title, className = '', bounds, actions, delay =
   }, [bounds]);
 
   const begin = (mode: 'move' | Edge) => (e: ReactPointerEvent<HTMLElement>) => {
-    if (e.button !== 0 || !panel.current || !bounds.current) return;
+    if (compact || e.button !== 0 || !panel.current || !bounds.current) return;
     e.preventDefault();
     e.stopPropagation();
     const root = bounds.current.getBoundingClientRect();
@@ -124,16 +128,20 @@ export function GlassPanel({ id, title, className = '', bounds, actions, delay =
     storeGeometry(id, null);
   };
 
+  // The remembered geometry is kept for the full layout; the compact one places panels itself.
   const style = {
     zIndex: 2 + rank,
-    ...(geo && { left: geo.x, top: geo.y, width: geo.w, height: geo.h, right: 'auto', bottom: 'auto', minHeight: 0 }),
+    ...(geo && !compact && { left: geo.x, top: geo.y, width: geo.w, height: geo.h, right: 'auto', bottom: 'auto', minHeight: 0 }),
   };
 
   return (
     <motion.section
       ref={panel}
       data-panel={id}
-      className={`hud-panel ${className}${interacting ? ` hud-panel--${interacting}` : ''}${gliding ? ' hud-panel--glide' : ''}`}
+      aria-hidden={offstage || undefined}
+      className={`hud-panel ${className}${interacting ? ` hud-panel--${interacting}` : ''}${gliding && !compact ? ' hud-panel--glide' : ''}${
+        compact ? ' hud-panel--compact' : ''
+      }${offstage ? ' hud-panel--offstage' : ''}`}
       style={style}
       // Capture: a click anywhere in the panel (header, content, resize edge) raises it.
       onPointerDownCapture={() => bringToFront(id)}
@@ -142,17 +150,21 @@ export function GlassPanel({ id, title, className = '', bounds, actions, delay =
       exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.2 } }}
       transition={{ delay, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
     >
-      <header className="hud-panel-header" onPointerDown={begin('move')} onDoubleClick={reset} title={t().hud.panelHeaderHint}>
-        <GripIcon className="hud-panel-grip" width={14} height={14} />
+      <header
+        className="hud-panel-header"
+        onPointerDown={begin('move')}
+        onDoubleClick={compact ? undefined : reset}
+        title={compact ? undefined : t().hud.panelHeaderHint}
+      >
+        {!compact && <GripIcon className="hud-panel-grip" width={14} height={14} />}
         <h2>{title}</h2>
         <div className="hud-panel-actions" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
           {actions}
         </div>
       </header>
       <div className="hud-panel-body">{children}</div>
-      {EDGES.map((edge) => (
-        <div key={edge} className={`hud-resize hud-resize--${edge}`} onPointerDown={begin(edge)} aria-hidden />
-      ))}
+      {!compact &&
+        EDGES.map((edge) => <div key={edge} className={`hud-resize hud-resize--${edge}`} onPointerDown={begin(edge)} aria-hidden />)}
     </motion.section>
   );
 }

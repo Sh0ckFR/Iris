@@ -30,7 +30,7 @@ export const zh: Messages = {
     dropTitle: '拖放文档以进行分析',
     dropFormats: 'PDF · Word · 图片 · 文本',
     showPanelAgain: '重新显示此面板',
-    panels: { conversation: '对话', knowledge: '知识', dashboard: '仪表板' },
+    panels: { conversation: '对话', knowledge: '知识', dashboard: '仪表板', briefing: '卡片', visual: '视觉' },
     panelHeaderHint: '拖动以移动 · 双击以重置',
     modelBadgeTitle: '回答你问题的模型',
     noModel: '没有模型 — 请在设置中添加密钥',
@@ -477,7 +477,7 @@ export const zh: Messages = {
       firstName: '名字',
       bootGreeting: '启动时语音播报状态问候',
       uiSounds: '界面音效',
-      launchAtStartup: '随 Windows 启动 Iris — 她会在通知区域（迷你窗口）中等待，随时聆听并按时提醒。',
+      launchAtStartup: (os: string) => `随 ${os} 启动 Iris — 她会在通知区域（迷你窗口）中等待，随时聆听并按时提醒。`,
     },
   },
 };

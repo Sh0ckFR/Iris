@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Desktop-only plugins: launch at login (Windows, macOS, Linux)",
+  "platforms": ["windows", "macOS", "linux"],
+  "windows": ["main", "mini"],
+  "permissions": ["autostart:default"]
+}

@@ -33,7 +33,7 @@ export const de: Messages = {
     dropTitle: 'Dokumente hier ablegen, um sie zu analysieren',
     dropFormats: 'PDF · Word · Bilder · Text',
     showPanelAgain: 'Dieses Fenster wieder anzeigen',
-    panels: { conversation: 'Unterhaltung', knowledge: 'Wissen', dashboard: 'Dashboard' },
+    panels: { conversation: 'Unterhaltung', knowledge: 'Wissen', dashboard: 'Dashboard', briefing: 'Karten', visual: 'Visual' },
     panelHeaderHint: 'Ziehen zum Verschieben · Doppelklick zum Zurücksetzen',
     modelBadgeTitle: 'Modell, das deine Fragen beantwortet',
     noModel: 'Kein Modell — füge in den Einstellungen einen Schlüssel hinzu',
@@ -491,8 +491,8 @@ export const de: Messages = {
       firstName: 'Vorname',
       bootGreeting: 'Gesprochene Statusbegrüßung beim Start',
       uiSounds: 'Oberflächenklänge',
-      launchAtStartup:
-        'Iris mit Windows starten — sie wartet dann im Infobereich (Mini-Fenster), bereit zuzuhören und ihre geplanten Erinnerungen einzuhalten.',
+      launchAtStartup: (os: string) =>
+        `Iris mit ${os} starten — sie wartet dann im Infobereich (Mini-Fenster), bereit zuzuhören und ihre geplanten Erinnerungen einzuhalten.`,
     },
   },
 };

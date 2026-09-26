@@ -30,7 +30,7 @@ export const tr: Messages = {
     dropTitle: 'Analiz için belgelerinizi bırakın',
     dropFormats: 'PDF · Word · görseller · metin',
     showPanelAgain: 'Bu paneli yeniden göster',
-    panels: { conversation: 'Sohbet', knowledge: 'Bilgi', dashboard: 'Pano' },
+    panels: { conversation: 'Sohbet', knowledge: 'Bilgi', dashboard: 'Pano', briefing: 'Kartlar', visual: 'Görsel' },
     panelHeaderHint: 'Taşımak için sürükleyin · sıfırlamak için çift tıklayın',
     modelBadgeTitle: 'Sorularınızı yanıtlayan model',
     noModel: 'Model yok — Ayarlar’dan bir anahtar ekleyin',
@@ -477,7 +477,7 @@ export const tr: Messages = {
       firstName: 'Ad',
       bootGreeting: 'Açılışta sesli durum selamı',
       uiSounds: 'Arayüz sesleri',
-      launchAtStartup: 'Iris’i Windows ile başlat — bildirim alanında (mini pencere) bekler, dinlemeye ve planlanmış hatırlatıcılarını yerine getirmeye hazır.',
+      launchAtStartup: (os: string) => `Iris’i ${os} ile başlat — bildirim alanında (mini pencere) bekler, dinlemeye ve planlanmış hatırlatıcılarını yerine getirmeye hazır.`,
     },
   },
 };

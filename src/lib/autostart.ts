@@ -1,10 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
+import { IS_MOBILE } from './platform';
 
 /**
- * Settings → "Start Iris with Windows": the login entry (tauri-plugin-autostart) follows the
- * setting — added when it's on, removed when it's off, checked at every launch.
+ * Settings → "Start Iris with Windows / macOS / Linux": the login entry (tauri-plugin-autostart:
+ * the registry, a LaunchAgent, an XDG autostart file) follows the setting — added when it's on,
+ * removed when it's off, checked at every launch. Phones and tablets have no such entry.
  */
 export async function syncAutostart(enabled: boolean): Promise<void> {
+  if (IS_MOBILE) return;
   try {
     const registered = await invoke<boolean>('plugin:autostart|is_enabled');
     if (registered === enabled) return;

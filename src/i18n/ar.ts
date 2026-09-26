@@ -30,7 +30,7 @@ export const ar: Messages = {
     dropTitle: 'أفلت مستنداتك هنا لتحليلها',
     dropFormats: 'PDF · Word · صور · نص',
     showPanelAgain: 'إظهار هذه اللوحة مجددًا',
-    panels: { conversation: 'المحادثة', knowledge: 'المعرفة', dashboard: 'لوحة المعلومات' },
+    panels: { conversation: 'المحادثة', knowledge: 'المعرفة', dashboard: 'لوحة المعلومات', briefing: 'البطاقات', visual: 'المرئي' },
     panelHeaderHint: 'اسحب للتحريك · انقر مرتين لإعادة الضبط',
     modelBadgeTitle: 'النموذج الذي يجيب عن أسئلتك',
     noModel: 'لا يوجد نموذج — أضف مفتاحًا في الإعدادات',
@@ -477,7 +477,7 @@ export const ar: Messages = {
       firstName: 'الاسم الأول',
       bootGreeting: 'تحية صوتية بالحالة عند التشغيل',
       uiSounds: 'أصوات الواجهة',
-      launchAtStartup: 'تشغيل Iris مع Windows — تنتظر في منطقة الإشعارات (النافذة المصغرة)، جاهزة للاستماع والالتزام بتذكيراتها المجدولة.',
+      launchAtStartup: (os: string) => `تشغيل Iris مع ${os} — تنتظر في منطقة الإشعارات (النافذة المصغرة)، جاهزة للاستماع والالتزام بتذكيراتها المجدولة.`,
     },
   },
 };

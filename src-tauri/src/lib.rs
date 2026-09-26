@@ -8,9 +8,13 @@ mod windows;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // "En service depuis": counted from this launch, not from Windows' boot.
+    // "En service depuis": counted from this launch, not from the computer's boot.
     system::mark_app_start();
-    tauri::Builder::default()
+    // macOS / Linux: an app started from the Dock, Finder or a desktop menu gets a bare PATH;
+    // take the user's own (Homebrew, nvm, ~/.local/bin…) so `npx`, `uvx`, `brew`… resolve
+    // like in a terminal, for MCP servers, commands and skills.
+    system::adopt_login_shell_path();
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_stronghold::Builder::new(vault::hash_password).build())
@@ -59,6 +63,16 @@ pub fn run() {
             mcp::mcp_send,
             mcp::mcp_stop
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Iris");
+        .build(tauri::generate_context!())
+        .expect("error while building Iris");
+
+    app.run(|app, event| {
+        // macOS: the interface hidden in the menu bar comes back when the Dock icon is clicked.
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Reopen { .. } = event {
+            windows::show_main(app);
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = (app, event);
+    });
 }

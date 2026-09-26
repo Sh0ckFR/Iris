@@ -356,7 +356,8 @@ kbd {
 
 /* Notice */
 .hud-notice {
-  position: absolute; left: 50%; bottom: 150px; z-index: 8; transform: translateX(-50%);
+  /* Centred with margins, not a transform: Framer Motion's y animation replaces the transform. */
+  position: absolute; left: 0; right: 0; margin-inline: auto; width: fit-content; bottom: 150px; z-index: 8;
   display: flex; align-items: center; gap: 10px;
   max-width: min(560px, calc(100vw - 32px)); padding: 8px 8px 8px 14px;
   border-radius: 12px; font-size: 13px; line-height: 1.4;
@@ -366,8 +367,8 @@ kbd {
 
 /* Control dock */
 .hud-dock {
-  position: absolute; left: 50%; bottom: 24px; z-index: 7;
-  width: min(640px, calc(100vw - 32px)); transform: translateX(-50%);
+  position: absolute; left: 0; right: 0; margin-inline: auto; bottom: 24px; z-index: 7;
+  width: min(640px, calc(100vw - 32px));
   display: flex; flex-direction: column; align-items: center; gap: 12px;
 }
 .hud-status {
@@ -925,7 +926,7 @@ kbd {
 
 /* Approval card (human-in-the-loop for OS actions) */
 .hud-approval {
-  position: absolute; left: 50%; bottom: 150px; z-index: 9; transform: translateX(-50%);
+  position: absolute; left: 0; right: 0; margin-inline: auto; bottom: 150px; z-index: 9;
   width: min(520px, calc(100vw - 32px)); padding: 16px 18px;
   display: flex; flex-direction: column; gap: 12px;
   border-radius: 16px; background: rgba(8, 12, 6, 0.9); border: 1px solid var(--hud-border);
@@ -948,7 +949,7 @@ kbd {
 
 /* Background-task toast (vault saves, voice download) */
 .hud-toast {
-  position: absolute; left: 50%; top: 64px; z-index: 11; transform: translateX(-50%);
+  position: absolute; left: 0; right: 0; margin-inline: auto; width: fit-content; top: 64px; z-index: 11;
   display: flex; align-items: center; gap: 10px;
   max-width: min(520px, calc(100vw - 32px)); padding: 8px 14px; border-radius: 12px;
   font-size: 13px; background: var(--hud-glass); border: 1px solid var(--hud-border);
@@ -968,18 +969,112 @@ kbd {
   .tele-systems, .tele-block { display: none; }
   .hud-panel--log { top: 150px; }
 }
-@media (max-width: 900px) {
-  .tele { display: none; }
-  .hud-panel--graph { display: none; }
-  .hud-panel--log { top: 68px; width: min(320px, calc(100vw - 32px)); bottom: auto; height: 38vh; }
-  .hud-panel--briefing { top: 68px; bottom: auto; height: 38vh; width: min(320px, calc(100vw - 32px)); }
-  .hud-panel--visual { left: 16px; right: 16px; top: 68px; bottom: 150px; }
-}
-@media (max-width: 560px) {
-  .hud-panel--log { display: none; }
-}
 @media (prefers-reduced-motion: reduce) {
   .hud-caret { animation: none; }
+}
+
+/* ------------------------------------------------------------------ compact layout
+   Phones and small windows (see compactLayout.ts): the panels fill the space between the top
+   bar and the dock, one at a time, picked with tabs; everything stays reachable. The insets keep
+   clear of a phone's notch, rounded corners and gesture bar. */
+.hud {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+.hud--compact {
+  --hud-gutter: 10px;
+  --hud-compact-top: calc(var(--safe-top) + 94px);
+  --hud-compact-bottom: calc(var(--safe-bottom) + var(--hud-dock-height, 110px) + 20px);
+}
+.hud--compact .hud-topbar {
+  top: calc(var(--safe-top) + 10px); left: calc(var(--safe-left) + var(--hud-gutter)); right: calc(var(--safe-right) + var(--hud-gutter)); gap: 8px;
+}
+.hud--compact .hud-brand { gap: 8px; font-size: 12px; letter-spacing: 0.32em; }
+.hud--compact .hud-badge { max-width: 42vw; padding: 4px 10px; font-size: 11px; }
+/* Hidden panels come back from their tab. */
+.hud--compact .hud-restore { display: none; }
+
+.hud-tabs {
+  position: absolute; z-index: 7; top: calc(var(--safe-top) + 54px);
+  left: calc(var(--safe-left) + var(--hud-gutter)); right: calc(var(--safe-right) + var(--hud-gutter));
+  display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.hud-tabs::-webkit-scrollbar { display: none; }
+.hud-tabs button {
+  flex: none; padding: 7px 13px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  font: inherit; font-size: 12px; letter-spacing: 0.04em; color: var(--hud-dim);
+  background: var(--hud-glass); border: 1px solid var(--hud-border);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.hud-tabs button.is-on { color: var(--hud-text); border-color: var(--hud-accent); background: rgba(118, 185, 0, 0.16); box-shadow: 0 0 14px rgba(118, 185, 0, 0.18); }
+.hud-tabs button:focus-visible { outline: 2px solid var(--hud-accent); outline-offset: 1px; }
+
+.hud-panel--compact {
+  left: calc(var(--safe-left) + var(--hud-gutter)) !important; right: calc(var(--safe-right) + var(--hud-gutter)) !important;
+  top: var(--hud-compact-top) !important; bottom: var(--hud-compact-bottom) !important;
+  width: auto !important; height: auto !important; min-height: 0 !important; max-width: none; max-height: none;
+}
+/* Hidden but laid out: the graph, the globe and the charts keep measuring their real size. */
+.hud-panel--offstage, .hud-panel--offstage * { visibility: hidden !important; pointer-events: none !important; }
+.hud-panel--compact .hud-panel-header { cursor: default; touch-action: auto; }
+/* The eye tab: only Iris's eye, between the top bar and the dock. */
+.hud--tab-eye .hud-orb-canvas { opacity: 1; }
+.hud--compact:not(.hud--tab-eye) .hud-orb-canvas { opacity: 0.45; transition: opacity 0.4s; }
+
+/* Telemetry as a panel: static, scrollable, readable. */
+.tele-scroll { position: absolute; inset: 0; overflow-y: auto; padding: 12px 14px; box-sizing: border-box; }
+.tele-scroll .tele { position: static; width: auto; pointer-events: auto; }
+.tele-scroll .tele-systems, .tele-scroll .tele-block { display: flex; }
+.tele-scroll .tele-systems { display: grid; }
+
+.hud--compact .hud-dock {
+  bottom: calc(var(--safe-bottom) + 10px); gap: 8px;
+  width: calc(100vw - var(--safe-left) - var(--safe-right) - 2 * var(--hud-gutter));
+}
+.hud--compact .hud-tasks { max-height: 104px; overflow-y: auto; }
+.hud--compact .hud-task-activity { display: none; }
+.hud--compact .hud-status { font-size: 12px; min-height: 16px; }
+.hud--compact .hud-notice, .hud--compact .hud-approval { bottom: var(--hud-compact-bottom); max-width: calc(100vw - 2 * var(--hud-gutter)); }
+.hud--compact .hud-approval { width: calc(100vw - 2 * var(--hud-gutter)); box-sizing: border-box; max-height: calc(100% - var(--hud-compact-top) - var(--hud-compact-bottom)); overflow-y: auto; }
+.hud--compact .hud-toast { top: calc(var(--safe-top) + 96px); }
+.hud--compact .hud-drop { inset: calc(var(--safe-top) + 8px) 8px calc(var(--safe-bottom) + 8px); }
+.hud--compact .wg--map { min-height: 360px; }
+.hud--compact .dash-grid { grid-template-columns: 1fr; }
+.hud--compact .dash-tile--map { height: 420px; }
+.hud--compact .boot-lines { font-size: 11px; letter-spacing: 0.08em; }
+.hud--compact .boot-lines p { white-space: pre-wrap; }
+
+/* Dialogs on a phone: full height, clear of the notch and the gesture bar. */
+.set-backdrop, .setup {
+  padding: calc(var(--safe-top) + 12px) calc(var(--safe-right) + 12px) calc(var(--safe-bottom) + 12px) calc(var(--safe-left) + 12px);
+}
+.set-panel, .setup-card { max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px); }
+@media (max-width: 560px) {
+  .setup-card { padding: 16px; border-radius: 16px; }
+  .set-panel { border-radius: 16px; }
+  .set-body { padding: 0 14px 8px; }
+  .set-header { padding: 12px 12px 10px 16px; }
+  .set-footer { padding: 12px 14px 14px; flex-wrap: wrap; }
+  .set-providers--small { grid-template-columns: 1fr; }
+  .setup-languages { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .brief-weather-days { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Touch screens: bigger targets, and 16 px fields (iOS zooms into smaller ones). */
+@media (pointer: coarse) {
+  .hud-icon-btn--sm { width: 34px; height: 34px; }
+  .hud-task-cancel { width: 30px; height: 30px; }
+  .hud-input input, .set-field input, .set-field select, .set-code, .voice-name,
+  .setup .set-field select, .setup .set-field input, .set-connect .set-key input { font-size: 16px; }
+  .hud-resize--n, .hud-resize--s { height: 18px; }
+  .hud-resize--e, .hud-resize--w { width: 18px; }
+  .hud-resize--n { top: -9px; }
+  .hud-resize--s { bottom: -9px; }
+  .hud-resize--e { right: -9px; }
+  .hud-resize--w { left: -9px; }
+  .hud-resize--ne, .hud-resize--nw, .hud-resize--se, .hud-resize--sw { width: 28px; height: 28px; }
 }
 
 /* Settings: model prices */

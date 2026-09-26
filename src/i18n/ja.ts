@@ -30,7 +30,7 @@ export const ja: Messages = {
     dropTitle: 'ドキュメントをドロップして分析',
     dropFormats: 'PDF · Word · 画像 · テキスト',
     showPanelAgain: 'このパネルを再表示',
-    panels: { conversation: '会話', knowledge: 'ナレッジ', dashboard: 'ダッシュボード' },
+    panels: { conversation: '会話', knowledge: 'ナレッジ', dashboard: 'ダッシュボード', briefing: 'カード', visual: 'ビジュアル' },
     panelHeaderHint: 'ドラッグで移動 · ダブルクリックでリセット',
     modelBadgeTitle: '質問に答えるモデル',
     noModel: 'モデルがありません — 設定でキーを追加してください',
@@ -477,7 +477,7 @@ export const ja: Messages = {
       firstName: '名前',
       bootGreeting: '起動時にステータスを音声であいさつ',
       uiSounds: 'インターフェースのサウンド',
-      launchAtStartup: 'Windows と一緒に Iris を起動 — 通知領域（ミニウィンドウ）で待機し、いつでも聞き取り、予定のリマインダーを守ります。',
+      launchAtStartup: (os: string) => `${os} と一緒に Iris を起動 — 通知領域（ミニウィンドウ）で待機し、いつでも聞き取り、予定のリマインダーを守ります。`,
     },
   },
 };

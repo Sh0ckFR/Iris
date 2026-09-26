@@ -1,21 +1,27 @@
 //! "What am I looking at?": a screenshot of the screen under the mouse, for the vision model.
 
+#[cfg(desktop)]
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
+#[cfg(desktop)]
+use tauri::Manager;
 
 type CmdResult<T> = Result<T, String>;
 
+#[cfg(desktop)]
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
 }
 
 /// Longest side sent to the model: enough to read text, and image tokens grow with the pixels.
+#[cfg(desktop)]
 const MAX_SIDE: u32 = 1600;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(mobile, allow(dead_code))]
 pub struct Screenshot {
     /// JPEG, base64.
     base64: String,
@@ -23,6 +29,15 @@ pub struct Screenshot {
     height: u32,
 }
 
+/// Phones and tablets don't let an app capture the screen of other apps.
+#[cfg(mobile)]
+#[tauri::command]
+pub async fn capture_screen(app: AppHandle) -> CmdResult<Screenshot> {
+    let _ = app;
+    Err("this device doesn't let apps capture the screen of other apps".into())
+}
+
+#[cfg(desktop)]
 #[tauri::command]
 pub async fn capture_screen(app: AppHandle) -> CmdResult<Screenshot> {
     // If Iris's own interface is in front, the user means what is behind it.
@@ -40,11 +55,13 @@ pub async fn capture_screen(app: AppHandle) -> CmdResult<Screenshot> {
     shot?
 }
 
+/// `cursor` is in the OS's physical pixels; on macOS xcap locates screens in points.
+#[cfg(desktop)]
 fn grab(cursor: Option<(i32, i32)>) -> CmdResult<Screenshot> {
     use base64::Engine;
     use image::{codecs::jpeg::JpegEncoder, imageops::FilterType, DynamicImage};
 
-    let monitor = match cursor.and_then(|(x, y)| xcap::Monitor::from_point(x, y).ok()) {
+    let monitor = match cursor.and_then(|(x, y)| monitor_at(x, y)) {
         Some(m) => m,
         None => {
             let all = xcap::Monitor::all().map_err(err)?;
@@ -64,4 +81,19 @@ fn grab(cursor: Option<(i32, i32)>) -> CmdResult<Screenshot> {
         width: rgb.width(),
         height: rgb.height(),
     })
+}
+
+/// The screen containing a point given in physical pixels (Tauri's cursor position).
+#[cfg(desktop)]
+fn monitor_at(x: i32, y: i32) -> Option<xcap::Monitor> {
+    if cfg!(target_os = "macos") {
+        // Screens are laid out in points there: find the one whose pixel box holds the point.
+        return xcap::Monitor::all().ok()?.into_iter().find(|m| {
+            let scale = m.scale_factor().unwrap_or(1.0) as f64;
+            let (mx, my) = (m.x().unwrap_or(0) as f64 * scale, m.y().unwrap_or(0) as f64 * scale);
+            let (mw, mh) = (m.width().unwrap_or(0) as f64 * scale, m.height().unwrap_or(0) as f64 * scale);
+            (x as f64) >= mx && (x as f64) < mx + mw && (y as f64) >= my && (y as f64) < my + mh
+        });
+    }
+    xcap::Monitor::from_point(x, y).ok()
 }

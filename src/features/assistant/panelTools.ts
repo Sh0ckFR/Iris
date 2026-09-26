@@ -2,6 +2,7 @@ import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import { invoke } from '@tauri-apps/api/core';
 import { loadGeometry, placePanel, setPanelGeometry, type Geometry, type PanelPosition, type PanelSize } from '../hud/panelGeometry';
+import { isCompact, setCompactTab } from '../hud/compactLayout';
 
 /** Iris arranges the HUD itself: "move the page to the left", "close the news", "bigger". */
 
@@ -85,6 +86,11 @@ export function createPanelTools(hooks: PanelHooks): ToolSet {
               }
             }
             if (a.action === 'reset') setPanelGeometry(panel, null);
+            // Small screen: panels fill the space one at a time; the one asked for is shown.
+            if (isCompact()) {
+              setCompactTab(panel);
+              continue;
+            }
             if (a.action === 'move' || a.action === 'resize') {
               const next = placePanel(currentGeometry(panel, W, H), W, H, a.position as PanelPosition | undefined, a.size as PanelSize | undefined);
               setPanelGeometry(panel, next);
@@ -94,6 +100,7 @@ export function createPanelTools(hooks: PanelHooks): ToolSet {
         return {
           done: problems.length === 0,
           problems: problems.length ? problems : undefined,
+          note: isCompact() ? 'The screen is small: panels are shown one at a time, full width, with tabs (moving and resizing do not apply).' : undefined,
           panels: Object.fromEntries(PANELS.map((p) => [p, hooks.isVisible(p) ? 'visible' : 'hidden'])),
         };
       },

@@ -33,7 +33,7 @@ export const es: Messages = {
     dropTitle: 'Suelta tus documentos para analizarlos',
     dropFormats: 'PDF · Word · imágenes · texto',
     showPanelAgain: 'Mostrar de nuevo este panel',
-    panels: { conversation: 'Conversación', knowledge: 'Conocimiento', dashboard: 'Panel' },
+    panels: { conversation: 'Conversación', knowledge: 'Conocimiento', dashboard: 'Panel', briefing: 'Fichas', visual: 'Visual' },
     panelHeaderHint: 'Arrastra para mover · doble clic para restablecer',
     modelBadgeTitle: 'Modelo que responde a tus preguntas',
     noModel: 'Sin modelo — añade una clave en Ajustes',
@@ -491,8 +491,8 @@ export const es: Messages = {
       firstName: 'Nombre',
       bootGreeting: 'Saludo de estado hablado al iniciar',
       uiSounds: 'Sonidos de la interfaz',
-      launchAtStartup:
-        'Iniciar Iris con Windows — espera en el área de notificación (mini ventana), lista para escuchar y cumplir sus recordatorios programados.',
+      launchAtStartup: (os: string) =>
+        `Iniciar Iris con ${os} — espera en el área de notificación (mini ventana), lista para escuchar y cumplir sus recordatorios programados.`,
     },
   },
 };

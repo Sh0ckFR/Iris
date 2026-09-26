@@ -2727,7 +2727,9 @@ dependencies = [
  "tokio",
  "trash",
  "uiautomation",
+ "webkit2gtk",
  "windows 0.62.2",
+ "x11rb",
  "xcap",
 ]
 

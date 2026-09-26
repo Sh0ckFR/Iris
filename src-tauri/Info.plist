@@ -5,5 +5,8 @@
   <!-- macOS refuses microphone access (and kills the app) without this usage string. -->
   <key>NSMicrophoneUsageDescription</key>
   <string>Iris listens to your voice commands.</string>
+  <!-- Window management and computer use go through System Events. -->
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Iris arranges and controls application windows when you ask her to.</string>
 </dict>
 </plist>

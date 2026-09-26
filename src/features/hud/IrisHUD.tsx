@@ -33,6 +33,7 @@ import { prepareAttachment, type Attachment } from '../assistant/documents';
 import { CloseIcon, GearIcon, TrashIcon } from './icons';
 import { invoke } from '@tauri-apps/api/core';
 import { setUiLanguage, useT } from '../../i18n';
+import { setCompactTab, useCompactLayout, useCompactTab, type CompactTab } from './compactLayout';
 import './HUD.css';
 
 /** The boot sequence and spoken greeting play once per app session (not on every re-mount). */
@@ -239,6 +240,41 @@ export function IrisHUD() {
     return () => void off.then((f) => f());
   }, []);
 
+  // ---- Compact layout (phones, small windows): one panel at a time, chosen with tabs.
+  const compact = useCompactLayout();
+  const tab = useCompactTab();
+  const briefingId = assistant.briefing?.id;
+  const visualId = assistant.visual?.id;
+  // What just appeared comes to the front, as a new panel does in the full layout.
+  useEffect(() => void (briefingId && setCompactTab('briefing')), [briefingId]);
+  useEffect(() => void (visualId && setCompactTab('visual')), [visualId]);
+  useEffect(() => void (dashboards.open && setCompactTab('dashboard')), [dashboards.open]);
+  const tabs: { id: CompactTab; label: string }[] = [
+    { id: 'eye', label: 'I.R.I.S' },
+    { id: 'conversation', label: t.hud.panels.conversation },
+    ...(assistant.briefing ? [{ id: 'briefing' as const, label: t.hud.panels.briefing }] : []),
+    ...(assistant.visual ? [{ id: 'visual' as const, label: t.hud.panels.visual }] : []),
+    ...(dashboards.open ? [{ id: 'dashboard' as const, label: t.hud.panels.dashboard }] : []),
+    { id: 'knowledge', label: t.hud.panels.knowledge },
+    { id: 'telemetry', label: t.telemetry.label },
+  ];
+  // The chosen panel, if it is still there (a card closed meanwhile → the conversation).
+  let shown: CompactTab = tabs.some((x) => x.id === tab) ? tab : 'conversation';
+  if ((shown === 'conversation' || shown === 'knowledge') && hiddenPanels.has(shown)) shown = 'eye';
+  const showTab = (id: CompactTab) => {
+    if (id === 'conversation' || id === 'knowledge') setPanelHidden(id, false);
+    setCompactTab(id);
+  };
+  const offstage = (id: CompactTab) => compact && shown !== id;
+  // The dock grows with running tasks and attachments: compact panels end just above it.
+  useEffect(() => {
+    const dock = root.current?.querySelector<HTMLElement>('.hud-dock');
+    if (!dock || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => root.current?.style.setProperty('--hud-dock-height', `${Math.ceil(dock.getBoundingClientRect().height)}px`));
+    observer.observe(dock);
+    return () => observer.disconnect();
+  }, []);
+
   // Esc = cut Iris off (voice only); the microphone itself is always on.
   // With an approval card open: Enter = allow, Esc = decline.
   const { stopSpeaking } = assistant;
@@ -268,7 +304,7 @@ export function IrisHUD() {
   }, [settingsOpen, stopSpeaking, pendingAction, respondToAction]);
 
   return (
-    <div ref={root} className={`hud hud--${phase}`} {...dropHandlers}>
+    <div ref={root} className={`hud hud--${phase}${compact ? ` hud--compact hud--tab-${shown}` : ''}`} {...dropHandlers}>
       <div className="hud-grid" aria-hidden />
       <AnimatePresence>
         {dragging && (
@@ -302,15 +338,48 @@ export function IrisHUD() {
         </button>
       </header>
 
-      <Telemetry
-        phase={phase}
-        brain={assistant.brainLabel}
-        voiceReady={assistant.voiceReady}
-        voiceActive={assistant.voiceActive}
-        webSearch={!!vault.secrets.tavily}
-        wake={assistant.wakeStatus}
-        voiceMode={assistant.voiceMode}
-      />
+      {compact && (
+        <nav className="hud-tabs" role="tablist">
+          {tabs.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              role="tab"
+              aria-selected={shown === x.id}
+              className={shown === x.id ? 'is-on' : undefined}
+              onClick={() => showTab(x.id)}
+            >
+              {x.label}
+            </button>
+          ))}
+        </nav>
+      )}
+
+      {compact ? (
+        <GlassPanel id="telemetry" title={t.telemetry.label} className="hud-panel--tele" bounds={root} compact offstage={offstage('telemetry')}>
+          <div className="tele-scroll">
+            <Telemetry
+              phase={phase}
+              brain={assistant.brainLabel}
+              voiceReady={assistant.voiceReady}
+              voiceActive={assistant.voiceActive}
+              webSearch={!!vault.secrets.tavily}
+              wake={assistant.wakeStatus}
+              voiceMode={assistant.voiceMode}
+            />
+          </div>
+        </GlassPanel>
+      ) : (
+        <Telemetry
+          phase={phase}
+          brain={assistant.brainLabel}
+          voiceReady={assistant.voiceReady}
+          voiceActive={assistant.voiceActive}
+          webSearch={!!vault.secrets.tavily}
+          wake={assistant.wakeStatus}
+          voiceMode={assistant.voiceMode}
+        />
+      )}
 
       <AnimatePresence>
         {!hiddenPanels.has('conversation') && (
@@ -320,6 +389,8 @@ export function IrisHUD() {
             title={t.hud.panels.conversation}
             className="hud-panel--log"
             bounds={root}
+            compact={compact}
+            offstage={offstage('conversation')}
             delay={0.1}
             actions={
               <>
@@ -352,6 +423,8 @@ export function IrisHUD() {
             title={t.hud.panels.knowledge}
             className="hud-panel--graph"
             bounds={root}
+            compact={compact}
+            offstage={offstage('knowledge')}
             delay={0.2}
             actions={
               <button type="button" className="hud-icon-btn hud-icon-btn--sm" onClick={() => setPanelHidden('knowledge', true)} aria-label={t.hud.hideKnowledge}>
@@ -372,6 +445,8 @@ export function IrisHUD() {
             title={assistant.briefing.heading}
             className="hud-panel--briefing"
             bounds={root}
+            compact={compact}
+            offstage={offstage('briefing')}
             actions={
               <button type="button" className="hud-icon-btn hud-icon-btn--sm" onClick={assistant.closeBriefing} aria-label={t.hud.closeBriefing}>
                 <CloseIcon width={14} height={14} />
@@ -391,6 +466,8 @@ export function IrisHUD() {
             title={assistant.visual.heading}
             className="hud-panel--visual"
             bounds={root}
+            compact={compact}
+            offstage={offstage('visual')}
             actions={
               <button type="button" className="hud-icon-btn hud-icon-btn--sm" onClick={assistant.closeVisual} aria-label={t.hud.closeVisual}>
                 <CloseIcon width={14} height={14} />
@@ -410,6 +487,8 @@ export function IrisHUD() {
             title={dashboards.dashboards.find((d) => d.id === dashboards.open)?.name ?? t.hud.panels.dashboard}
             className="hud-panel--dashboard"
             bounds={root}
+            compact={compact}
+            offstage={offstage('dashboard')}
             actions={
               <button type="button" className="hud-icon-btn hud-icon-btn--sm" onClick={() => dashboardStore.open(null)} aria-label={t.hud.closeDashboard}>
                 <CloseIcon width={14} height={14} />

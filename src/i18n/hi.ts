@@ -30,7 +30,7 @@ export const hi: Messages = {
     dropTitle: 'विश्लेषण के लिए अपने दस्तावेज़ यहाँ छोड़ें',
     dropFormats: 'PDF · Word · चित्र · टेक्स्ट',
     showPanelAgain: 'यह पैनल फिर से दिखाएँ',
-    panels: { conversation: 'बातचीत', knowledge: 'ज्ञान', dashboard: 'डैशबोर्ड' },
+    panels: { conversation: 'बातचीत', knowledge: 'ज्ञान', dashboard: 'डैशबोर्ड', briefing: 'कार्ड', visual: 'विज़ुअल' },
     panelHeaderHint: 'हटाने के लिए खींचें · रीसेट के लिए डबल-क्लिक करें',
     modelBadgeTitle: 'आपके सवालों का जवाब देने वाला मॉडल',
     noModel: 'कोई मॉडल नहीं — सेटिंग्स में कुंजी जोड़ें',
@@ -477,7 +477,7 @@ export const hi: Messages = {
       firstName: 'पहला नाम',
       bootGreeting: 'शुरू होने पर स्थिति का बोला गया अभिवादन',
       uiSounds: 'इंटरफ़ेस ध्वनियाँ',
-      launchAtStartup: 'Windows के साथ Iris शुरू करें — वह सूचना क्षेत्र (मिनी विंडो) में प्रतीक्षा करती है, सुनने और तय रिमाइंडर निभाने के लिए तैयार।',
+      launchAtStartup: (os: string) => `${os} के साथ Iris शुरू करें — वह सूचना क्षेत्र (मिनी विंडो) में प्रतीक्षा करती है, सुनने और तय रिमाइंडर निभाने के लिए तैयार।`,
     },
   },
 };

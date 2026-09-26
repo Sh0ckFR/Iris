@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { invoke } from '@tauri-apps/api/core';
 import type { Language } from '../../lib/settings';
 import { resolveLang, type Briefing, type FileEntry, type ToolHooks } from './tools';
+import { OS_NAME, PLATFORM, type Platform } from '../../lib/platform';
 
 /**
  * OS control. In autonomous mode (the default, Settings) actions run straight away; otherwise
@@ -55,7 +56,7 @@ export function loadOsContext(): Promise<OsContext> {
 }
 
 export function describeOsContext(c: OsContext): string {
-  const os = c.os === 'windows' ? 'Windows' : c.os === 'macos' ? 'macOS' : c.os === 'linux' ? 'Linux' : c.os;
+  const os = OS_NAME[c.os as Platform] ?? c.os;
   const folders = [
     ['Home', c.home],
     ['Desktop', c.desktop],
@@ -218,14 +219,14 @@ export function createOsTools(hooks: OsHooks, defaultLanguage: Language): ToolSe
       inputSchema: z.object({ path: pathParam('file or folder to delete') }),
       execute: ({ path }) =>
         approved(
-          { title: t('Mettre à la corbeille', 'Move to the Recycle Bin'), details: [{ label: t('Chemin', 'Path'), value: path, mono: true }], risk: 'high' },
+          { title: t('Mettre à la corbeille', PLATFORM === 'windows' ? 'Move to the Recycle Bin' : 'Move to the Trash'), details: [{ label: t('Chemin', 'Path'), value: path, mono: true }], risk: 'high' },
           () => invoke<string>('os_trash', { path }),
         ),
     }),
 
     run_command: tool({
       description:
-        'Run a shell command (PowerShell on Windows, sh on macOS/Linux) in the home folder and get its output. Use only when no other tool fits.',
+        `Run a ${PLATFORM === 'windows' ? 'PowerShell' : 'sh (POSIX shell)'} command on this ${OS_NAME[PLATFORM]} computer, in the home folder, and get its output. Use only when no other tool fits.`,
       inputSchema: z.object({
         command: z.string().describe('The exact command line to run'),
         purpose: z.string().describe('One short sentence explaining what the command does, for the user'),

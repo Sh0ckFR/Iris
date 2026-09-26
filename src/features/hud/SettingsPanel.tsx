@@ -12,6 +12,7 @@ import { CloseIcon } from './icons';
 import { memoryStore, useMemory } from '../../lib/memory';
 import { parseMcpConfig, useMcpStatus } from '../assistant/mcp';
 import { defaultPrice, type Price } from '../../lib/costs';
+import { IS_DESKTOP, OS_NAME, PLATFORM } from '../../lib/platform';
 import { LANGUAGES, isUiLanguage, uiLocale, useT, type Messages } from '../../i18n';
 
 const IMAGE_MODELS = ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'] as const;
@@ -558,10 +559,13 @@ export function SettingsPanel({ settings, secrets, vaultError, onSave, onConnect
               <input type="checkbox" checked={draft.uiSounds} onChange={(e) => patch({ uiSounds: e.target.checked })} />
               {t.personality.uiSounds}
             </label>
-            <label className="set-toggle">
-              <input type="checkbox" checked={draft.launchAtStartup} onChange={(e) => patch({ launchAtStartup: e.target.checked })} />
-              {t.personality.launchAtStartup}
-            </label>
+            {/* Phones and tablets decide themselves when an app runs. */}
+            {IS_DESKTOP && (
+              <label className="set-toggle">
+                <input type="checkbox" checked={draft.launchAtStartup} onChange={(e) => patch({ launchAtStartup: e.target.checked })} />
+                {t.personality.launchAtStartup(OS_NAME[PLATFORM])}
+              </label>
+            )}
           </section>
 
           <section>

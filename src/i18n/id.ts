@@ -30,7 +30,7 @@ export const id: Messages = {
     dropTitle: 'Letakkan dokumen Anda untuk dianalisis',
     dropFormats: 'PDF · Word · gambar · teks',
     showPanelAgain: 'Tampilkan panel ini lagi',
-    panels: { conversation: 'Percakapan', knowledge: 'Pengetahuan', dashboard: 'Dasbor' },
+    panels: { conversation: 'Percakapan', knowledge: 'Pengetahuan', dashboard: 'Dasbor', briefing: 'Kartu', visual: 'Visual' },
     panelHeaderHint: 'Seret untuk memindahkan · klik ganda untuk mengatur ulang',
     modelBadgeTitle: 'Model yang menjawab pertanyaan Anda',
     noModel: 'Tidak ada model — tambahkan kunci di Pengaturan',
@@ -477,7 +477,7 @@ export const id: Messages = {
       firstName: 'Nama depan',
       bootGreeting: 'Sapaan status lisan saat mulai',
       uiSounds: 'Suara antarmuka',
-      launchAtStartup: 'Jalankan Iris bersama Windows — ia menunggu di area notifikasi (jendela mini), siap mendengarkan dan menepati pengingat terjadwalnya.',
+      launchAtStartup: (os: string) => `Jalankan Iris bersama ${os} — ia menunggu di area notifikasi (jendela mini), siap mendengarkan dan menepati pengingat terjadwalnya.`,
     },
   },
 };
