@@ -1,8 +1,19 @@
 # Builds Iris on every system it supports, on every push and pull request:
-#  - desktop: Rust tests, then the installers (Windows .msi/.exe, macOS .app/.dmg, Linux .deb/.rpm/.AppImage),
-#    uploaded as workflow artifacts (unsigned);
-#  - Android: a debug APK;
+#  - desktop: Rust tests, then the installers (Windows .msi/.exe, macOS .app/.dmg, Linux .deb/.rpm/.AppImage);
+#  - Android: an APK (signed release APK + AAB when a signing key is configured, else a debug APK);
 #  - iOS: the Rust code compiled for iPhone (an app build needs an Apple developer team to sign it).
+# Everything is uploaded as workflow artifacts. Pushing a tag v* (e.g. v0.2.0) also publishes a
+# draft GitHub Release with every installer attached.
+#
+# Signing is optional and driven by repository secrets (Settings → Secrets and variables →
+# Actions); without them the builds are simply unsigned. See "Signing" in the README.
+#   Windows (either):  WINDOWS_CERTIFICATE (base64 .pfx) + WINDOWS_CERTIFICATE_PASSWORD
+#                      AZURE_TENANT_ID + AZURE_CLIENT_ID + AZURE_CLIENT_SECRET +
+#                      AZURE_SIGNING_ENDPOINT + AZURE_SIGNING_ACCOUNT + AZURE_SIGNING_PROFILE
+#   macOS:             APPLE_CERTIFICATE (base64 .p12, "Developer ID Application") + APPLE_CERTIFICATE_PASSWORD
+#                      notarization: APPLE_ID + APPLE_PASSWORD (app-specific password) + APPLE_TEAM_ID
+#   Android:           ANDROID_KEYSTORE (base64 .jks) + ANDROID_KEYSTORE_PASSWORD + ANDROID_KEY_ALIAS
+#                      (+ ANDROID_KEY_PASSWORD if it differs from the keystore password)
 name: Build
 on:
   push:
@@ -26,9 +37,14 @@ jobs:
           - os: ubuntu-24.04
             name: linux
     runs-on: ${{ matrix.os }}
+    env:
+      HAS_WINDOWS_PFX: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+      HAS_AZURE_SIGNING: ${{ secrets.AZURE_CLIENT_SECRET != '' }}
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
+      HAS_APPLE_NOTARY: ${{ secrets.APPLE_ID != '' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -48,8 +64,88 @@ jobs:
       - name: Rust tests
         working-directory: src-tauri
         run: cargo test
+
+      # ---- Windows signing: a .pfx certificate, or Azure Trusted Signing.
+      - name: Windows signing certificate (.pfx)
+        if: matrix.name == 'windows' && env.HAS_WINDOWS_PFX == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'iris.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password |
+            Where-Object HasPrivateKey | Select-Object -First 1
+          Remove-Item $pfx
+          if (-not $cert) { throw 'WINDOWS_CERTIFICATE holds no certificate with a private key' }
+          $config = Join-Path $env:RUNNER_TEMP 'signing.json'
+          @{ bundle = @{ windows = @{ certificateThumbprint = $cert.Thumbprint; digestAlgorithm = 'sha256'; timestampUrl = 'http://timestamp.digicert.com' } } } |
+            ConvertTo-Json -Depth 5 | Set-Content $config
+          "SIGNING_CONFIG=$config" >> $env:GITHUB_ENV
+      - name: Azure Trusted Signing
+        if: matrix.name == 'windows' && env.HAS_AZURE_SIGNING == 'true' && env.HAS_WINDOWS_PFX != 'true'
+        shell: pwsh
+        env:
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        run: |
+          cargo install trusted-signing-cli --locked
+          $command = "trusted-signing-cli -e $env:AZURE_SIGNING_ENDPOINT -a $env:AZURE_SIGNING_ACCOUNT -c $env:AZURE_SIGNING_PROFILE -d Iris %1"
+          $config = Join-Path $env:RUNNER_TEMP 'signing.json'
+          @{ bundle = @{ windows = @{ signCommand = $command } } } | ConvertTo-Json -Depth 5 | Set-Content $config
+          "SIGNING_CONFIG=$config" >> $env:GITHUB_ENV
+
+      # ---- macOS signing ("Developer ID Application") and notarization.
+      - name: Apple signing certificate
+        if: matrix.name == 'macos' && env.HAS_APPLE_CERT == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/iris.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/iris.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/iris.p12" -k "$KEYCHAIN" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/iris.p12"
+          IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | grep -m1 -o '"Developer ID Application[^"]*"' | tr -d '"')"
+          if [ -z "$IDENTITY" ]; then echo "APPLE_CERTIFICATE holds no 'Developer ID Application' identity"; exit 1; fi
+          echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+      - name: Apple notarization
+        if: matrix.name == 'macos' && env.HAS_APPLE_CERT == 'true' && env.HAS_APPLE_NOTARY == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          {
+            echo "APPLE_ID=$APPLE_ID"
+            echo "APPLE_PASSWORD=$APPLE_PASSWORD"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+          } >> "$GITHUB_ENV"
+
       - name: Installers
-        run: npx tauri build
+        shell: bash
+        env:
+          # Read by trusted-signing-cli (Azure Trusted Signing); unused otherwise.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: npx tauri build ${SIGNING_CONFIG:+--config "$SIGNING_CONFIG"}
+      - name: Check the Windows signatures
+        if: matrix.name == 'windows' && env.SIGNING_CONFIG != ''
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem src-tauri/target/release/bundle -Recurse -Include *.exe, *.msi
+          $files | Get-AuthenticodeSignature | Format-Table Status, @{ n = 'Signer'; e = { $_.SignerCertificate.Subject } }, Path -AutoSize
+          if ($files | Get-AuthenticodeSignature | Where-Object { $_.Status -eq 'NotSigned' }) { throw 'An installer is not signed' }
       - uses: actions/upload-artifact@v4
         with:
           name: iris-${{ matrix.name }}
@@ -64,19 +160,20 @@ jobs:
 
   android:
     runs-on: ubuntu-24.04
+    env:
+      HAS_ANDROID_KEY: ${{ secrets.ANDROID_KEYSTORE != '' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
-      - uses: android-actions/setup-android@v3
-      - name: Android NDK
-        run: sdkmanager --install "ndk;27.2.12479018"
+      # The Android SDK and NDK are preinstalled on GitHub's Ubuntu runners
+      # (ANDROID_HOME, ANDROID_NDK_LATEST_HOME): no setup action needed.
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
@@ -84,26 +181,46 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      - name: Android NDK
+        run: |
+          echo "ANDROID_NDK_LATEST_HOME=$ANDROID_NDK_LATEST_HOME"
+          test -d "$ANDROID_NDK_LATEST_HOME"
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> "$GITHUB_ENV"
       - name: Android project
-        env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
         run: |
           npx tauri android init --ci
           node scripts/mobile-setup.mjs android
-      - name: Debug APK
+      - name: Android signing key
+        if: env.HAS_ANDROID_KEY == 'true'
         env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
-        run: npx tauri android build --debug --apk --ci
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/iris.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$RUNNER_TEMP/iris.jks" "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}" \
+            > src-tauri/gen/android/keystore.properties
+      - name: APK
+        run: |
+          if [ "$HAS_ANDROID_KEY" = "true" ]; then
+            npx tauri android build --apk --aab --ci
+          else
+            npx tauri android build --debug --apk --ci
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: iris-android
-          path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
           if-no-files-found: warn
 
   ios:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim
@@ -115,3 +232,21 @@ jobs:
         run: |
           mkdir -p ../dist
           cargo check --lib --target aarch64-apple-ios
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [desktop, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Draft release with the installers
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: artifacts/**/*

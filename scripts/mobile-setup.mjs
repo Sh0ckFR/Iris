@@ -32,6 +32,46 @@ if (target === 'android') {
   } else {
     console.log('AndroidManifest.xml: permissions already present');
   }
+
+  // Release signing: used when src-tauri/gen/android/keystore.properties exists (written by CI
+  // from the repository secrets, or by hand), with storeFile, storePassword, keyAlias, keyPassword.
+  // Without it, release builds stay unsigned and debug builds use the debug key, as before.
+  const gradle = 'src-tauri/gen/android/app/build.gradle.kts';
+  let kts = readFileSync(gradle, 'utf8');
+  if (kts.includes('irisKeystore')) {
+    console.log('build.gradle.kts: release signing already set up');
+  } else {
+    const androidBlock = /^android \{\r?\n/m;
+    const releaseType = /getByName\("release"\) \{\r?\n/;
+    if (!androidBlock.test(kts) || !releaseType.test(kts)) {
+      console.error(`${gradle}: unexpected layout, release signing not added (see https://v2.tauri.app/distribute/sign/android/)`);
+      process.exit(1);
+    }
+    const declarations = [
+      '// Iris: release signing from keystore.properties (scripts/mobile-setup.mjs).',
+      'val irisKeystore = rootProject.file("keystore.properties")',
+      'val irisKeystoreProperties = java.util.Properties().apply { if (irisKeystore.exists()) irisKeystore.inputStream().use { load(it) } }',
+      '',
+    ].join('\n');
+    const signingConfig = [
+      '    if (irisKeystore.exists()) {',
+      '        signingConfigs {',
+      '            create("release") {',
+      '                storeFile = file(irisKeystoreProperties.getProperty("storeFile"))',
+      '                storePassword = irisKeystoreProperties.getProperty("storePassword")',
+      '                keyAlias = irisKeystoreProperties.getProperty("keyAlias")',
+      '                keyPassword = irisKeystoreProperties.getProperty("keyPassword")',
+      '            }',
+      '        }',
+      '    }',
+      '',
+    ].join('\n');
+    kts = kts
+      .replace(androidBlock, (m) => `${declarations}\n${m}${signingConfig}`)
+      .replace(releaseType, (m) => `${m}            if (irisKeystore.exists()) signingConfig = signingConfigs.getByName("release")\n`);
+    writeFileSync(gradle, kts);
+    console.log('build.gradle.kts: release signing added (active when keystore.properties exists)');
+  }
 }
 
 // App icons for the new project, from the same eye as the desktop app.

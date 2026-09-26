@@ -171,7 +171,29 @@ npm test                                             # Vitest: tools, maps, aler
 cd src-tauri && cargo test                           # Rust unit tests
 cd src-tauri && cargo test -- --ignored --nocapture  # desktop tests (moves the mouse!) + search engines
 ```
-CI (`.github/workflows/`) type-checks and tests on every push, builds installers on Windows, macOS and Linux, a debug APK for Android, and compiles the Rust code for iOS.
+CI (`.github/workflows/`) type-checks and tests on every push, builds installers on Windows, macOS and Linux, an APK for Android, and compiles the Rust code for iOS. Installers are attached to each run (**Artifacts**); pushing a tag `v*` (e.g. `v0.2.0`) also drafts a **GitHub Release** with all of them.
+
+### Signing
+
+Optional: add these **repository secrets** (*Settings → Secrets and variables → Actions*) and CI signs what it builds; without them the builds are unsigned (SmartScreen / Gatekeeper warnings, debug APK).
+
+| Platform | Secrets | Notes |
+|---|---|---|
+| Windows — certificate file | `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` | Base64 of a `.pfx`. Since 2023, OV/EV certificates are issued on hardware tokens and can't be exported: use Azure below for a new one. |
+| Windows — Azure Trusted Signing | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE` | An app registration with the *Trusted Signing Certificate Profile Signer* role; endpoint such as `https://weu.codesigning.azure.net`. |
+| macOS | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD` | Base64 of a *Developer ID Application* `.p12` (Apple Developer Program). |
+| macOS notarization | `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | `APPLE_PASSWORD` is an [app-specific password](https://account.apple.com). |
+| Android | `ANDROID_KEYSTORE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (+ `ANDROID_KEY_PASSWORD` if different) | Base64 of a `.jks`; CI then builds a signed release APK and an AAB for the Play Store. |
+
+```bash
+# Android upload key (keep it safe: every update must be signed with it)
+keytool -genkey -v -keystore iris.jks -keyalg RSA -keysize 2048 -validity 10000 -alias iris
+# Base64 for a secret — macOS / Linux:
+base64 -i iris.jks | tr -d '\n'
+# Windows (PowerShell):
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("iris.jks")) | Set-Clipboard
+```
+Avoid backslashes in the Android passwords (`keystore.properties` treats them as escapes). Locally, the same signing works with `src-tauri/gen/android/keystore.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`; git-ignored). iOS apps are signed by Xcode with your Apple team.
 
 ---
 

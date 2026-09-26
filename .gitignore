@@ -27,6 +27,7 @@ src-tauri/gen/schemas
 *.p12
 *.keystore
 *.jks
+keystore.properties
 *.hold
 *.stronghold
 *.snapshot
