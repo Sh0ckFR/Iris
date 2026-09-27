@@ -145,7 +145,7 @@ flowchart LR
     libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev
   ```
   At runtime: a Secret Service (GNOME Keyring / KWallet; without one, the vault password is kept in a private file) and `pactl`, `wpctl` or `amixer` for the volume.
-- **Android**: Android Studio (SDK + NDK), Java 17, `rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android`.
+- **Android**: Android Studio (SDK + NDK), Java 17, `rustup target add aarch64-linux-android` (APKs are built for arm64-v8a, which every phone able to run Iris uses; add `x86_64-linux-android` for an x86_64 emulator).
 - **iOS**: a Mac with Xcode, `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`, and an Apple developer team to sign.
 - A WebGPU-capable GPU is recommended for local speech recognition, and at least one API key (OpenAI, Anthropic or Gemini).
 

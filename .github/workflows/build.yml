@@ -1,6 +1,6 @@
 # Builds Iris on every system it supports, on every push and pull request:
 #  - desktop: Rust tests, then the installers (Windows .msi/.exe, macOS .app/.dmg, Linux .deb/.rpm/.AppImage);
-#  - Android: an APK (signed release APK + AAB when a signing key is configured, else a debug APK);
+#  - Android: an arm64 APK (signed release APK + AAB when a signing key is configured, else a debug APK);
 #  - iOS: the Rust code compiled for iPhone (an app build needs an Apple developer team to sign it).
 # Everything is uploaded as workflow artifacts. Pushing a tag v* (e.g. v0.2.0) also publishes a
 # draft GitHub Release with every installer attached.
@@ -174,12 +174,16 @@ jobs:
           java-version: 17
       # The Android SDK and NDK are preinstalled on GitHub's Ubuntu runners
       # (ANDROID_HOME, ANDROID_NDK_LATEST_HOME): no setup action needed.
+      # arm64 only: every phone able to run Iris (WebGPU, local Whisper) is arm64-v8a, and the
+      # 32-bit / x86 builds of libsodium (Stronghold, compiled from C with ./configure) break
+      # when cross-compiled; they also made the build four times longer.
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          targets: aarch64-linux-android
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          cache-on-failure: true
       - run: npm ci
       - name: Android NDK
         run: |
@@ -205,9 +209,9 @@ jobs:
       - name: APK
         run: |
           if [ "$HAS_ANDROID_KEY" = "true" ]; then
-            npx tauri android build --apk --aab --ci
+            npx tauri android build --target aarch64 --apk --aab --ci
           else
-            npx tauri android build --debug --apk --ci
+            npx tauri android build --target aarch64 --debug --apk --ci
           fi
       - uses: actions/upload-artifact@v4
         with:

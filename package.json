@@ -10,7 +10,7 @@
     "tauri": "tauri",
     "android:init": "tauri android init && node scripts/mobile-setup.mjs android",
     "android:dev": "tauri android dev",
-    "android:build": "tauri android build",
+    "android:build": "tauri android build --target aarch64",
     "ios:init": "tauri ios init && node scripts/mobile-setup.mjs ios",
     "ios:dev": "tauri ios dev",
     "ios:build": "tauri ios build",
