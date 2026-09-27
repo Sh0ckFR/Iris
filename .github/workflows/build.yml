@@ -74,13 +74,14 @@ jobs:
         with:
           workspaces: src-tauri
           key: ${{ matrix.name }}
+      # xdg-utils: the AppImage bundles xdg-open (preinstalled on the x64 image, not on the ARM one).
       - name: Linux system libraries
         if: matrix.family == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
             libssl-dev libdbus-1-dev libxdo-dev libpipewire-0.3-dev libclang-dev libgbm-dev libegl-dev \
-            libwayland-dev libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev
+            libwayland-dev libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev xdg-utils
       - run: npm ci
       - run: npm test
       - name: Rust tests

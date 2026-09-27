@@ -158,7 +158,7 @@ flowchart LR
   ```bash
   sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev \
     libdbus-1-dev libxdo-dev libpipewire-0.3-dev libclang-dev libgbm-dev libegl-dev libwayland-dev \
-    libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev
+    libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev xdg-utils
   ```
   At runtime: a Secret Service (GNOME Keyring / KWallet; without one, the vault password is kept in a private file) and `pactl`, `wpctl` or `amixer` for the volume.
 - **Android**: Android Studio (SDK + NDK), Java 17, `rustup target add aarch64-linux-android` (APKs are built for arm64-v8a, which every phone able to run Iris uses; add `x86_64-linux-android` for an x86_64 emulator).

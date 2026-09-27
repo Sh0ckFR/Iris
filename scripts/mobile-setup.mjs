@@ -67,6 +67,15 @@ if (target === 'android') {
   // Without it, release builds stay unsigned and debug builds use the debug key, as before.
   const gradle = 'src-tauri/gen/android/app/build.gradle.kts';
   let kts = readFileSync(gradle, 'utf8');
+  // In a Gradle Kotlin script, `java` is the project's Java extension, not the package: the
+  // class must be imported (Tauri's template does) and named `Properties`. Projects set up by an
+  // earlier version of this script wrote `java.util.Properties()` and don't compile.
+  const withImport = (text) => (/^import java\.util\.Properties$/m.test(text) ? text : `import java.util.Properties\n${text}`);
+  if (kts.includes('java.util.Properties().apply')) {
+    kts = withImport(kts.replace('java.util.Properties().apply', 'Properties().apply'));
+    writeFileSync(gradle, kts);
+    console.log('build.gradle.kts: release signing fixed (Properties import)');
+  }
   if (kts.includes('irisKeystore')) {
     console.log('build.gradle.kts: release signing already set up');
   } else {
@@ -79,7 +88,7 @@ if (target === 'android') {
     const declarations = [
       '// Iris: release signing from keystore.properties (scripts/mobile-setup.mjs).',
       'val irisKeystore = rootProject.file("keystore.properties")',
-      'val irisKeystoreProperties = java.util.Properties().apply { if (irisKeystore.exists()) irisKeystore.inputStream().use { load(it) } }',
+      'val irisKeystoreProperties = Properties().apply { if (irisKeystore.exists()) irisKeystore.inputStream().use { load(it) } }',
       '',
     ].join('\n');
     const signingConfig = [
@@ -95,9 +104,11 @@ if (target === 'android') {
       '    }',
       '',
     ].join('\n');
-    kts = kts
-      .replace(androidBlock, (m) => `${declarations}\n${m}${signingConfig}`)
-      .replace(releaseType, (m) => `${m}            if (irisKeystore.exists()) signingConfig = signingConfigs.getByName("release")\n`);
+    kts = withImport(
+      kts
+        .replace(androidBlock, (m) => `${declarations}\n${m}${signingConfig}`)
+        .replace(releaseType, (m) => `${m}            if (irisKeystore.exists()) signingConfig = signingConfigs.getByName("release")\n`),
+    );
     writeFileSync(gradle, kts);
     console.log('build.gradle.kts: release signing added (active when keystore.properties exists)');
   }
