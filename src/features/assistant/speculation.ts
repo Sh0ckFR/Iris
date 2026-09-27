@@ -17,14 +17,30 @@ const SPEECH = 0.3;
 const SILENCE = 0.25;
 /** Pause that starts a speculative transcription (~0.26 s). */
 const PAUSE_FRAMES = 8;
-/** Pause after which a clearly finished sentence is committed (~0.42 s, instead of 0.7 s). */
-const COMMIT_FRAMES = 13;
+/**
+ * Pause after which a clearly finished sentence is committed (~0.55 s, instead of the detector's
+ * 0.7 s). Shorter cut people off at their natural pauses ("Iris… [breath] mets de la musique").
+ */
+const COMMIT_FRAMES = 17;
 /** Some speech first (~0.35 s): not every breath. */
 const MIN_SPEECH_FRAMES = 11;
 /** At most this many speculative transcriptions per sentence (people pausing mid-sentence). */
 const MAX_SPECULATIONS = 3;
 
-const FINISHED = /[.?!…？。！]["»”’)\]]*$/;
+/** Ends a sentence ("…" doesn't: the user trails off and goes on). */
+const FINISHED = /[.?!？。！]["»”’)\]]*$/;
+
+/**
+ * Whisper puts a full stop after almost anything, "Iris." included: a sentence is only
+ * committed early when it says something besides her name (a request is at least two words).
+ */
+function saysSomething(text: string): boolean {
+  const words = text
+    .replace(/\b(iris|hiris|irisse|yris)\b/gi, ' ')
+    .split(/\s+/)
+    .filter((w) => /\p{L}/u.test(w));
+  return words.length >= 2;
+}
 
 interface Speculation {
   /** Frames it covers. */
@@ -94,7 +110,7 @@ export class Utterance {
   readyToCommit(): string | null {
     if (this.committed !== null || !this.specCurrent() || this.silence < COMMIT_FRAMES) return null;
     const text = this.spec?.result?.trim();
-    return text && FINISHED.test(text) ? text : null;
+    return text && FINISHED.test(text) && saysSomething(text) ? text : null;
   }
 
   /** Said something after the commit (to be heard as a new sentence). */

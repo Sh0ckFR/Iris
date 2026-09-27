@@ -65,6 +65,21 @@ export class LocalWakeListener {
   private recent: Float32Array[] = [];
   /** The sentence being spoken (speculative transcription, see speculation.ts). */
   private utterance: Utterance | null = null;
+  /** Whisper's device, and how long a transcription takes here (moving average, ms). */
+  private device: 'webgpu' | 'wasm' | null = null;
+  private transcribeMs = 0;
+  /** A speculative transcription is running (one at a time). */
+  private speculating = false;
+
+  /**
+   * Speculating costs a transcription that may be thrown away: only where Whisper is fast. On a
+   * phone's CPU it would queue behind itself and slow down (or drop) the real ones.
+   */
+  private canSpeculate(): boolean {
+    if (this.speculating || this.queued > 0) return false;
+    if (this.device === 'webgpu') return this.transcribeMs === 0 || this.transcribeMs < 900;
+    return this.transcribeMs > 0 && this.transcribeMs < 500;
+  }
   /** The microphone stream and audio context in use, watched for the OS taking them away. */
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
@@ -112,6 +127,7 @@ export class LocalWakeListener {
           else if (msg.type === 'ready') {
             // console.warn: forwarded to the dev log, like the other voice diagnostics.
             console.warn(`[iris:wake] local Whisper ready (${msg.model}, ${msg.device})`);
+            this.device = msg.device;
             this.cb.onEngine?.({ device: msg.device, model: msg.model });
             resolve();
           } else if (msg.type === 'result') this.settle(msg.id, msg.text);
@@ -125,7 +141,9 @@ export class LocalWakeListener {
         };
       });
       modelReady.catch(() => {}); // awaited below; never an unhandled rejection meanwhile
-      this.send({ type: 'load', mobile: IS_MOBILE });
+      // Phones with little memory (or that don't say) take the lighter model even with WebGPU.
+      const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+      this.send({ type: 'load', mobile: IS_MOBILE && !(memory !== undefined && memory >= 6) });
 
       // Ours rather than vad-web's, so it can be resumed after the app was in the background.
       this.audioContext = new AudioContext();
@@ -252,8 +270,13 @@ export class LocalWakeListener {
 
   private transcribe(audio: Float32Array): Promise<string | null> {
     const id = ++this.seq;
+    const started = performance.now();
     return new Promise((resolve) => {
-      this.pending.set(id, resolve);
+      this.pending.set(id, (text) => {
+        const ms = performance.now() - started;
+        this.transcribeMs = this.transcribeMs ? this.transcribeMs * 0.7 + ms * 0.3 : ms;
+        resolve(text);
+      });
       this.send({ type: 'transcribe', id, audio, language: this.cb.language() }, [audio.buffer]);
     });
   }
@@ -266,8 +289,10 @@ export class LocalWakeListener {
     if (!u || this.paused || this.stopped) return;
     u.push(frame, probability, Date.now());
     // A short pause: the sentence so far is transcribed now, in case it is over.
-    if (u.wantsSpeculation() && this.queued === 0) {
+    if (u.wantsSpeculation() && this.canSpeculate()) {
+      this.speculating = true;
       const spec = u.speculate((audio) => this.transcribe(audio));
+      void spec.promise.finally(() => (this.speculating = false));
       void spec.promise.then((text) => {
         // "Iris, …" and the user goes on: she is addressed before the end of the sentence.
         if (text && this.utterance === u && !u.specCurrent() && isAddressedToIris(text)) this.cb.onEarlyWake?.();

@@ -394,7 +394,7 @@ export const id: Messages = {
       vocabularyHint: 'Nama dan kata yang sering Anda ucapkan, dipisahkan koma (mis. perusahaan Anda, nama belakang rekan, produk yang Anda gunakan). Membantu Iris mendengar dan menulisnya dengan benar.',
       vocabularyPlaceholder: 'Nama, produk, tempat…',
       speakReplies: 'Bacakan balasan tertulis (suara yang sama)',
-      bargeIn: 'Jeda saat Anda bicara di atas suaranya: ia langsung berhenti, dan melanjutkan kecuali Anda mengucapkan “Iris, …”.',
+      bargeIn: 'Berbicara saat ia berbicara akan menghentikannya: ia langsung berhenti dan menjawab ucapan Anda (gema suaranya sendiri dan bunyi bising dikenali). Nonaktif: hanya "Iris, …" yang menghentikannya.',
       autonomous: 'Mode otonom: Iris bertindak di komputer dan memasang keterampilan tanpa bertanya (hapus centang untuk menyetujui setiap tindakan)',
     },
     brain: {

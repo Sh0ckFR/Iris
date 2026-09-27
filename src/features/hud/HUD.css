@@ -45,6 +45,9 @@
 /* "screen" blending: black adds nothing, glowing parts add light — a hologram over the
    background, and robust even if the bloom pass makes the canvas opaque. */
 .hud-orb-canvas { position: absolute !important; inset: 0; z-index: 0; mix-blend-mode: screen; }
+/* Phones: blending a WebGL canvas makes the webview recomposite it every frame (it flickered);
+   over the black HUD the result is the same without it. */
+.hud-orb-canvas--mobile { mix-blend-mode: normal; }
 
 /* Top bar */
 .hud-topbar {

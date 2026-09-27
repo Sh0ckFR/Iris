@@ -394,7 +394,7 @@ export const zh: Messages = {
       vocabularyHint: '你常说的名字和词语，用逗号分隔（例如你的公司、同事的姓氏、你使用的产品）。帮助 Iris 正确听写。',
       vocabularyPlaceholder: '名字、产品、地点…',
       speakReplies: '朗读文字回复（相同声音）',
-      bargeIn: '你插话时让她暂停：她会立即停下，除非你说“Iris，……”，否则会接着说。',
+      bargeIn: '在她说话时开口会让她停下：她立即停止并回应您说的话（会区分她自己的回声和噪音）。关闭：只有“Iris，……”能让她停下。',
       autonomous: '自主模式：Iris 无需询问即可操作电脑并安装技能（取消勾选则每个操作都需确认）',
     },
     brain: {

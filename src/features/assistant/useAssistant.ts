@@ -1039,8 +1039,10 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
   const listening = settings.voiceMode === 'realtime' ? hasRealtime(secrets) : chain.length > 0;
   runRequestRef.current = (text) => void send(text, [], { voice: true });
   const approvalPending = () => approvals.pendingCount > 0;
-  const voiceInput = useRef<VoiceInput>({ send, startVoice, runLocalCommand, answerApproval: approvals.answerByVoice, approvalPending, stopSpeaking });
-  voiceInput.current = { send, startVoice, runLocalCommand, answerApproval: approvals.answerByVoice, approvalPending, stopSpeaking };
+  /** Her sentences heard in the last 20 s: an interruption is told apart from her own echo with them. */
+  const recentlySpoken = () => spokenRef.current.filter((s) => Date.now() - s.at < 20_000).map((s) => s.text);
+  const voiceInput = useRef<VoiceInput>({ send, startVoice, runLocalCommand, answerApproval: approvals.answerByVoice, approvalPending, stopSpeaking, recentlySpoken });
+  voiceInput.current = { send, startVoice, runLocalCommand, answerApproval: approvals.answerByVoice, approvalPending, stopSpeaking, recentlySpoken };
   const { wakeStatus } = useLocalVoice({
     listening,
     voiceActive,

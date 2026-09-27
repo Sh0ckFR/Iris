@@ -20,9 +20,20 @@ describe('speculative transcription', () => {
     u.speculate(async (audio) => ((heard = audio.length), 'Iris, quelle heure est-il ?'));
     expect(heard).toBe((2 + 20 + 8) * 512);
     await flush();
-    expect(u.readyToCommit()).toBeNull(); // pause still short
     feed(u, 5, false);
+    expect(u.readyToCommit()).toBeNull(); // 0.42 s: a natural pause, not the end yet
+    feed(u, 4, false);
     expect(u.readyToCommit()).toBe('Iris, quelle heure est-il ?');
+  });
+
+  it('never commits her name alone: the request usually follows a breath later', async () => {
+    const u = new Utterance([], 0);
+    feed(u, 15, true);
+    feed(u, 8, false);
+    u.speculate(async () => 'Iris.');
+    await flush();
+    feed(u, 20, false);
+    expect(u.readyToCommit()).toBeNull();
   });
 
   it('drops the speculation when the user goes on, and hears what follows a commit', async () => {
@@ -39,11 +50,11 @@ describe('speculative transcription', () => {
 
     const v = new Utterance([], 0);
     feed(v, 15, true);
-    feed(v, 13, false);
-    v.speculate(async () => 'Merci.');
+    feed(v, 17, false);
+    v.speculate(async () => 'Merci beaucoup.');
     await flush();
     const text = v.readyToCommit();
-    expect(text).toBe('Merci.');
+    expect(text).toBe('Merci beaucoup.');
     v.committed = v.frames.length;
     feed(v, 12, true);
     expect(v.spokeAfterCommit()).toBe(true);

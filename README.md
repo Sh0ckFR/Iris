@@ -43,7 +43,7 @@ One codebase, the same features everywhere the OS allows them.
 ### 🎙️ Voice — always listening, no button
 - **Local listening**: Silero VAD cuts sentences, **Whisper small on the GPU** (WebGPU; Whisper base on the CPU otherwise, and on phones and tablets) transcribes them on the device. The telemetry shows which one runs, and where (GPU / CPU).
 - **Only her name triggers her**, at the start or end of a sentence (*"Iris, open the calculator"*, *"…, Iris, please"*; usual misspellings accepted). The one exception: the answer to a question she just asked, within 8 s.
-- **Talking over her pauses her** mid-syllable; with "Iris" in your sentence she drops her reply, otherwise she resumes (at most 12 s later). *"Iris, stop"* or **Esc** silence her.
+- **Talking over her stops her, like a person would**: she pauses mid-syllable, then drops her reply and answers what you said — unless it was her own voice coming back through the speakers or a noise, and she carries on where she stopped. With *Recognised voices only*, someone else talking in the room doesn't cut her off. *"Iris, stop"* or **Esc** silence her.
 - **Voice recognition** (optional): three sentences give a 256-number voiceprint (never audio). Iris can then answer only known voices, and keeps only the stretches spoken by one when others talk around you. Manage voices in *Settings → Recognised voices*.
 - **Standby** (*"stop listening"*), **"Iris?"** → *"Yes, sir?"* (0 tokens), and **instant acknowledgements** (*"Let me check."*) pre-synthesized at launch.
 - **Two modes**: *Economy* (default: local transcript → text model → speech, text tokens only) and *Premium* (OpenAI Realtime over WebRTC, opened only when addressed, closed after 30 s).

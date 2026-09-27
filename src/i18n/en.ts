@@ -450,7 +450,7 @@ export const en = {
         'Names and words you often say, separated by commas (e.g. your company, a colleague’s surname, a product you use). Helps Iris hear and spell them right.',
       vocabularyPlaceholder: 'Names, products, places…',
       speakReplies: 'Read typed replies aloud (same voice)',
-      bargeIn: 'Pause her when you talk over her: she stops at once, and carries on unless you say “Iris, …”.',
+      bargeIn: 'Talking over her stops her: she pauses at once and answers what you said (her own echo and noises are told apart). Off: only “Iris, …” stops her.',
       autonomous: 'Autonomous mode: Iris acts on the computer and installs skills without asking (untick to approve each action)',
     },
 

@@ -394,7 +394,7 @@ export const tr: Messages = {
       vocabularyHint: 'Sık söylediğiniz adlar ve sözcükler, virgülle ayrılmış (ör. şirketiniz, bir iş arkadaşınızın soyadı, kullandığınız bir ürün). Iris’in bunları doğru duymasına ve yazmasına yardım eder.',
       vocabularyPlaceholder: 'Adlar, ürünler, yerler…',
       speakReplies: 'Yazılı yanıtları sesli oku (aynı ses)',
-      bargeIn: 'Siz konuşunca duraklat: hemen durur ve “Iris, …” demediğiniz sürece kaldığı yerden devam eder.',
+      bargeIn: 'O konuşurken konuşmak onu durdurur: hemen susar ve söylediğinize yanıt verir (kendi sesinin yankısı ve gürültüler ayırt edilir). Kapalı: onu yalnızca "Iris, …" durdurur.',
       autonomous: 'Otonom mod: Iris sormadan bilgisayarda işlem yapar ve beceri yükler (her işlemi onaylamak için işareti kaldırın)',
     },
     brain: {

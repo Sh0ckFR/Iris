@@ -443,7 +443,7 @@ export const fr: Messages = {
         'Noms et mots que vous dites souvent, séparés par des virgules (par ex. votre entreprise, le nom d’un collègue, un produit que vous utilisez). Aide Iris à les entendre et les écrire correctement.',
       vocabularyPlaceholder: 'Noms, produits, lieux…',
       speakReplies: 'Lire à voix haute les réponses écrites (même voix)',
-      bargeIn: 'La mettre en pause quand vous parlez par-dessus : elle s’arrête aussitôt, et reprend sauf si vous dites « Iris, … ».',
+      bargeIn: 'Lui parler pendant qu’elle parle l’arrête : elle s’interrompt aussitôt et répond à ce que vous avez dit (son propre écho et les bruits sont écartés). Désactivé : seul « Iris, … » l’arrête.',
       autonomous: 'Mode autonome : Iris agit sur l’ordinateur et installe des compétences sans demander (décochez pour valider chaque action)',
     },
 

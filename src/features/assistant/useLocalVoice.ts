@@ -3,6 +3,7 @@ import type { Settings } from '../../lib/settings';
 import { LocalWakeListener, type LocalWakeStatus, type SpeechEngine } from './localWake';
 import { matchLocalCommand, type LocalCommand } from './localCommands';
 import { isAddressedToIris } from './wakeWord';
+import { isInterruption } from './bargeIn';
 import { playSfx } from './sfx';
 import { markActivity } from './useProactivity';
 import type { Speaker } from './tts';
@@ -15,7 +16,8 @@ import { isEnrolling, keepKnownVoices, voiceStore, warmVoiceRecognition, type Vo
  * Always-on listening on this computer (localWake.ts) and what a sentence heard means: a request
  * ("Iris, …", or the answer to a question she has just asked), a spoken answer to an approval
  * ("oui, vas-y"), or nothing for Iris (people chatting, her own echo). Talking over her pauses
- * her; without her name, she carries on. When she listens only to known voices (lib/voiceprint.ts),
+ * her, then she stops and answers — unless it was her own echo or a noise, and she carries on.
+ * When she listens only to known voices (lib/voiceprint.ts),
  * a sentence that would do something is first checked: an unknown voice is ignored, and in a
  * longer sentence only what a known voice said is kept (then transcribed again).
  */
@@ -29,6 +31,8 @@ export interface VoiceInput {
   /** An approval is waiting for an answer. */
   approvalPending: () => boolean;
   stopSpeaking: () => void;
+  /** What Iris said in the last seconds (her voice's echo is told from an interruption with it). */
+  recentlySpoken: () => string[];
 }
 
 interface Options {
@@ -77,12 +81,23 @@ export function useLocalVoice({ listening, voiceActive, live, speaker, sessionRe
       return;
     }
     const addressed = isAddressedToIris(text);
-    // Heard while Iris was speaking (she paused): only her name makes it a request. Anything else —
-    // people talking in the room, her own echo, a noise — and she carries on where she stopped.
+    // Heard while Iris was speaking (she paused at its first syllables). Like a person, she stops
+    // and answers what was said — unless it was her own voice coming back through the speakers
+    // or a noise Whisper turned into words: then she carries on where she stopped. (With
+    // "talking over her" off in Settings, only her name stops her.)
     const overIris = speaker.isHeld || (ttsBusyRef.current && live.current.settings.voiceMode !== 'realtime');
     if (overIris && !addressed) {
-      console.warn(`[iris:voice] heard over Iris without her name, she carries on: "${text}"`);
-      releaseHold();
+      if (!live.current.settings.bargeIn || !isInterruption(text, input.current.recentlySpoken())) {
+        console.warn(`[iris:voice] heard over Iris (${live.current.settings.bargeIn ? 'her echo or a noise' : 'no name'}), she carries on: "${text}"`);
+        releaseHold();
+        return;
+      }
+      console.warn(`[iris:voice] interrupted: Iris stops and answers "${text}"`);
+      window.clearTimeout(holdTimerRef.current);
+      followUpUntilRef.current = 0;
+      stopSpeaking();
+      playSfx('listen');
+      void send(text, [], { voice: true, heardAt: endedAt });
       return;
     }
 
@@ -123,7 +138,10 @@ export function useLocalVoice({ listening, voiceActive, live, speaker, sessionRe
     const { settings } = live.current;
     const overIris = speaker.isHeld || (ttsBusyRef.current && settings.voiceMode !== 'realtime');
     const followUp = settings.voiceMode !== 'realtime' && !overIris && startedAt >= followUpFromRef.current && startedAt <= followUpUntilRef.current;
-    const mayAct = input.current.approvalPending() || isAddressedToIris(text) || followUp;
+    // Talking over Iris now interrupts her: with known voices only, that is checked too (someone
+    // else in the room doesn't cut her off).
+    const interrupts = overIris && settings.bargeIn && settings.voiceMode !== 'realtime';
+    const mayAct = input.current.approvalPending() || isAddressedToIris(text) || followUp || interrupts;
     if (!settings.voiceLock || voiceStore.all.length === 0 || !mayAct) {
       handle(text, audio, startedAt, endedAt);
       return;

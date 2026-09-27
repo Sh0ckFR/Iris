@@ -4,6 +4,7 @@ import { Sparkles } from '@react-three/drei';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import type { Phase } from '../assistant/useAssistant';
+import { IS_MOBILE } from '../../lib/platform';
 
 /**
  * Iris's eye, at the centre of the HUD: an iris drawn as a camera aperture (six blades around a
@@ -11,7 +12,14 @@ import type { Phase } from '../assistant/useAssistant';
  * and graduated rings, with bloom for the glow. The pupil opens when listening, closes and spins
  * when thinking, pulses with the voice, and the eye glances toward the pointer.
  * Colours are pushed above 1.0 (toneMapped off) so only these elements bloom.
+ *
+ * Phones and tablets get a steadier eye: their GPUs render the bloom with little precision and
+ * their microphones (automatic gain) turn silence into noise — together the eye flickered. There:
+ * no bloom and no sparkles, the idle glow doesn't pulse, and the voice level is gated and eased.
  */
+
+/** Levels below this are the phone microphone's noise, not a voice. */
+const MOBILE_NOISE_GATE = 0.12;
 
 const PHASE_COLOR: Record<Phase, string> = {
   idle: '#76b900',
@@ -135,15 +143,16 @@ function Eye({ phase, levelRef, onActivate }: OrbProps) {
 
   useFrame(({ clock, pointer }, delta) => {
     const t = clock.elapsedTime;
-    const level = levelRef.current ?? 0;
-    // Fast attack, slow release: pops on syllables, settles smoothly.
-    smoothed.current += (level - smoothed.current) * (level > smoothed.current ? 0.4 : 0.08);
+    const raw = levelRef.current ?? 0;
+    const level = IS_MOBILE ? Math.max(0, (raw - MOBILE_NOISE_GATE) / (1 - MOBILE_NOISE_GATE)) : raw;
+    // Fast attack, slow release: pops on syllables, settles smoothly (gentler on phones).
+    smoothed.current += (level - smoothed.current) * (level > smoothed.current ? (IS_MOBILE ? 0.18 : 0.4) : IS_MOBILE ? 0.05 : 0.08);
     const s = smoothed.current;
     const busy = phase === 'thinking';
 
     target.set(PHASE_COLOR[phase]);
     color.lerp(target, 0.06);
-    const glow = 1.6 + s * 2.2 + (phase === 'idle' ? Math.sin(t * 1.6) * 0.2 : 0);
+    const glow = 1.6 + s * 2.2 + (phase === 'idle' && !IS_MOBILE ? Math.sin(t * 1.6) * 0.2 : 0);
     rimMat.current?.color.copy(color).multiplyScalar(glow + 0.6);
     bladeMat.current?.color.copy(color).multiplyScalar(glow);
     irisMat.current?.color.copy(color).multiplyScalar(0.35 + s * 0.3);
@@ -325,7 +334,7 @@ function Eye({ phase, levelRef, onActivate }: OrbProps) {
         <Arc key={i} inner={1.56} outer={1.57} start={(i / 48) * Math.PI * 2} length={0.07} color={GREEN} opacity={0.45} />
       ))}
 
-      <Sparkles count={40} scale={[4, 4, 1]} size={1.6} speed={0.25} color="#b6ff4d" opacity={0.5} />
+      {!IS_MOBILE && <Sparkles count={40} scale={[4, 4, 1]} size={1.6} speed={0.25} color="#b6ff4d" opacity={0.5} />}
     </group>
   );
 }
@@ -334,15 +343,17 @@ function Eye({ phase, levelRef, onActivate }: OrbProps) {
 export function Orb(props: OrbProps) {
   return (
     <Canvas
-      className="hud-orb-canvas"
+      className={`hud-orb-canvas${IS_MOBILE ? ' hud-orb-canvas--mobile' : ''}`}
       camera={{ position: [0, 0, 4.6], fov: 45 }}
       dpr={[1, 2]}
       gl={{ antialias: true, alpha: true }}
     >
       <Eye {...props} />
-      <EffectComposer>
-        <Bloom mipmapBlur intensity={1.1} luminanceThreshold={0.9} luminanceSmoothing={0.2} radius={0.7} />
-      </EffectComposer>
+      {!IS_MOBILE && (
+        <EffectComposer>
+          <Bloom mipmapBlur intensity={1.1} luminanceThreshold={0.9} luminanceSmoothing={0.2} radius={0.7} />
+        </EffectComposer>
+      )}
     </Canvas>
   );
 }

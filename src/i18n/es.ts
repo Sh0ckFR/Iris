@@ -403,7 +403,7 @@ export const es: Messages = {
         'Nombres y palabras que dices a menudo, separados por comas (p. ej. tu empresa, el apellido de un colega, un producto que usas). Ayuda a Iris a oírlos y escribirlos bien.',
       vocabularyPlaceholder: 'Nombres, productos, lugares…',
       speakReplies: 'Leer en voz alta las respuestas escritas (misma voz)',
-      bargeIn: 'Pausarla cuando hablas por encima: se detiene al instante y continúa, salvo que digas «Iris, …».',
+      bargeIn: 'Hablar mientras habla la detiene: se interrumpe al instante y responde a lo que ha dicho (su propio eco y los ruidos se distinguen). Desactivado: solo «Iris, …» la detiene.',
       autonomous: 'Modo autónomo: Iris actúa en el ordenador e instala habilidades sin preguntar (desmarca para aprobar cada acción)',
     },
     brain: {

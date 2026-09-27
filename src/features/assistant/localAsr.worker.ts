@@ -19,14 +19,16 @@ import ortWasmUrl from '@whisper-ort/ort-wasm-simd-threaded.asyncify.wasm?url';
  *
  * The model is downloaded from Hugging Face on first use, then served from the browser cache.
  * WebGPU when available ("small": accurate and fast on a GPU), otherwise WebAssembly with the
- * lighter "base" model (small would be too slow on a CPU). Phones and tablets take "base" even
- * with WebGPU: small (≈ 390 MB) strains a mobile webview's memory and the battery.
+ * lighter "base" model (small would be too slow on a CPU). Phones and tablets with less than
+ * 6 GB of memory (or that don't tell) take "base" even with WebGPU: small (≈ 390 MB) would strain
+ * their webview; the others keep small, much better at names and accents.
  *
  * The same worker computes voiceprints (speaker embeddings, see lib/voiceprint.ts) when asked:
  * a separate, smaller model, loaded only if voice recognition is used.
  */
 
 export type AsrRequest =
+  /** `mobile`: a device that should take the lighter model (see above). */
   | { type: 'load'; mobile?: boolean }
   | { type: 'transcribe'; id: number; audio: Float32Array; language: string | null }
   | { type: 'embed'; id: number; audio: Float32Array };

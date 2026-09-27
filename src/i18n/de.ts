@@ -403,7 +403,7 @@ export const de: Messages = {
         'Namen und Wörter, die du oft sagst, durch Kommas getrennt (z. B. deine Firma, der Nachname eines Kollegen, ein Produkt, das du nutzt). Hilft Iris, sie richtig zu hören und zu schreiben.',
       vocabularyPlaceholder: 'Namen, Produkte, Orte…',
       speakReplies: 'Geschriebene Antworten vorlesen (gleiche Stimme)',
-      bargeIn: 'Sie pausieren, wenn du dazwischensprichst: Sie hält sofort an und spricht weiter, außer du sagst „Iris, …“.',
+      bargeIn: 'Wenn Sie ihr ins Wort fallen, hält sie an: Sie verstummt sofort und antwortet auf das Gesagte (ihr eigenes Echo und Geräusche werden erkannt). Aus: Nur „Iris, …“ hält sie an.',
       autonomous: 'Autonomer Modus: Iris handelt am Computer und installiert Fähigkeiten ohne Nachfrage (abwählen, um jede Aktion zu bestätigen)',
     },
     brain: {
