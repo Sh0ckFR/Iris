@@ -78,6 +78,10 @@
     "linux": {
       "deb": {
         "depends": ["libayatana-appindicator3-1 | libappindicator3-1", "pulseaudio-utils | wireplumber | alsa-utils"]
+      },
+      "rpm": {
+        "depends": ["libwebkit2gtk-4.1.so.0()(64bit)"],
+        "recommends": ["libayatana-appindicator3.so.1()(64bit)", "pulseaudio-utils", "wireplumber"]
       }
     },
     "macOS": {

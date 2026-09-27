@@ -154,13 +154,24 @@ flowchart LR
 
 ### Prerequisites
 - **Node.js** 20.19+ or 22.12+, **Rust** stable ([rustup](https://rustup.rs)), and the [Tauri 2 prerequisites](https://tauri.app/start/prerequisites/) for your system.
-- **Linux** (Debian/Ubuntu names):
+- **Linux** — the same libraries under each family's names:
   ```bash
-  sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev \
+  # Debian, Ubuntu, Mint, Pop!_OS
+  sudo apt install build-essential libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev \
     libdbus-1-dev libxdo-dev libpipewire-0.3-dev libclang-dev libgbm-dev libegl-dev libwayland-dev \
     libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev xdg-utils
+
+  # Fedora
+  sudo dnf install @c-development webkit2gtk4.1-devel libayatana-appindicator-gtk3-devel librsvg2-devel patchelf \
+    openssl-devel dbus-devel libxdo-devel pipewire-devel clang-devel mesa-libgbm-devel mesa-libEGL-devel \
+    wayland-devel libxcb-devel xdg-utils
+
+  # Arch, Manjaro, EndeavourOS
+  sudo pacman -S --needed base-devel webkit2gtk-4.1 libayatana-appindicator librsvg patchelf openssl dbus \
+    xdotool pipewire clang mesa wayland libxcb xdg-utils
   ```
-  At runtime: a Secret Service (GNOME Keyring / KWallet; without one, the vault password is kept in a private file) and `pactl`, `wpctl` or `amixer` for the volume.
+  At runtime: a Secret Service (GNOME Keyring / KWallet; without one, the vault password is kept in a private file) and `pactl`, `wpctl` or `amixer` for the volume (`pulseaudio-utils` or `wireplumber` on Debian and Fedora, `libpulse` or `wireplumber` on Arch).
+- **Which package for which distribution**: `.deb` for Debian and Ubuntu, `.rpm` for Fedora and openSUSE (both declare what they need: the installer brings WebKitGTK, and the tray and volume tools where available), the **AppImage** for any distribution (it carries its libraries; some need FUSE 2: `fuse2` on Arch, `fuse-libs` on Fedora), the **Flatpak** everywhere Flatpak is. Arch has no native package: use the AppImage or the Flatpak.
 - **Android**: Android Studio (SDK + NDK), Java 17, `rustup target add aarch64-linux-android` (APKs are built for arm64-v8a, which every phone able to run Iris uses; add `x86_64-linux-android` for an x86_64 emulator).
 - **iOS**: a Mac with Xcode, `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`, and an Apple developer team to sign.
 - A WebGPU-capable GPU is recommended for local speech recognition, and at least one API key (OpenAI, Anthropic or Gemini).
