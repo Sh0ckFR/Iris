@@ -95,9 +95,20 @@ export const id: Messages = {
       mcp: 'Layanan MCP',
       webSearch: 'Pencarian web tanpa batas',
       webAnswers: 'Jawaban pencarian',
+      speechEngine: 'Pengenalan suara',
+    },
+    engine: {
+      gpu: (model: string) => `${model} · GPU`,
+      cpu: (model: string) => `${model} · CPU`,
+      cpuHint: 'Tidak ada WebGPU di webview ini: Whisper berjalan di prosesor dengan model "base" yang lebih ringan (lebih lambat dan sedikit kurang akurat).',
+      cpuHintLinux: 'WebKitGTK biasanya tidak menyediakan WebGPU: Whisper berjalan di prosesor dengan model "base" yang lebih ringan (lebih lambat dan sedikit kurang akurat).',
     },
     wake: { off: 'OFFLINE', loading: (detail) => `MEMUAT ${detail}`, listening: 'MENDENGARKAN', paused: 'DALAM SESI', error: 'GALAT' },
   },
+  updates: {
+    toast: (version: string) => `Iris ${version} tersedia — Pengaturan → Pembaruan`,
+  },
+
   mini: {
     connecting: 'Menghubungkan…',
     open: 'Buka Iris',
@@ -466,6 +477,19 @@ export const id: Messages = {
       tavilyKey: 'Kunci API Tavily (opsional)',
       tavilyHint: 'Iris sudah mencari di seluruh web secara gratis dan tanpa batas, serta membaca halaman yang ditemukannya. Kunci Tavily menambahkan jawaban siap pakai ke setiap pencarian; pencarian gratis mengambil alih saat kuotanya (1.000/bulan) habis · ',
     },
+    updates: {
+      title: 'Pembaruan',
+      current: (version: string) => `Versi ${version}`,
+      check: 'Periksa pembaruan',
+      checking: 'memeriksa…',
+      upToDate: 'terbaru',
+      available: (version: string) => `versi ${version} tersedia`,
+      install: 'Pasang dan mulai ulang',
+      downloading: (version: string, progress: string) => `mengunduh ${version}${progress}…`,
+      restarting: 'memulai ulang…',
+      failed: (message: string) => `pemeriksaan gagal (${message})`,
+    },
+
     personality: {
       title: 'Kepribadian',
       address: 'Bagaimana Iris harus menyapa Anda?',

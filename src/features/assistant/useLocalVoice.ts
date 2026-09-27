@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import type { Settings } from '../../lib/settings';
-import { LocalWakeListener, type LocalWakeStatus } from './localWake';
+import { LocalWakeListener, type LocalWakeStatus, type SpeechEngine } from './localWake';
 import { matchLocalCommand, type LocalCommand } from './localCommands';
 import { isAddressedToIris } from './wakeWord';
 import { playSfx } from './sfx';
@@ -47,6 +47,7 @@ interface Options {
 
 export function useLocalVoice({ listening, voiceActive, live, speaker, sessionRef, ttsBusyRef, followUpFromRef, followUpUntilRef, input, setLevel }: Options) {
   const [wakeStatus, setWakeStatus] = useState<{ status: LocalWakeStatus; detail?: string }>({ status: 'off' });
+  const [engine, setEngine] = useState<SpeechEngine | undefined>(undefined);
   const listenerRef = useRef<LocalWakeListener | null>(null);
   const holdTimerRef = useRef<number | undefined>(undefined);
 
@@ -166,6 +167,7 @@ export function useLocalVoice({ listening, voiceActive, live, speaker, sessionRe
       onSpeech,
       onSpeechStart,
       onSpeechDropped: releaseHold,
+      onEngine: setEngine,
       language: () => {
         const { language } = live.current.settings;
         return language === 'multi' ? null : language;
@@ -194,5 +196,5 @@ export function useLocalVoice({ listening, voiceActive, live, speaker, sessionRe
     else listenerRef.current?.resume();
   }, [voiceActive]);
 
-  return { wakeStatus, resumeListening: () => listenerRef.current?.resume() };
+  return { wakeStatus: { ...wakeStatus, engine }, resumeListening: () => listenerRef.current?.resume() };
 }

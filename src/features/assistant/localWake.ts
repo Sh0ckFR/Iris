@@ -1,6 +1,7 @@
 import { MicVAD } from '@ricky0123/vad-web';
 import type { AsrRequest, AsrResponse } from './localAsr.worker';
 import vadOrtWasm from '@vad-ort/ort-wasm-simd-threaded.wasm?url';
+import { IS_MOBILE } from '../../lib/platform';
 
 /**
  * Always-on listening, on this computer only: a voice activity detector (Silero VAD) cuts the
@@ -9,6 +10,16 @@ import vadOrtWasm from '@vad-ort/ort-wasm-simd-threaded.wasm?url';
  */
 
 export type LocalWakeStatus = 'off' | 'loading' | 'listening' | 'paused' | 'error';
+
+/** Which Whisper transcribes, and on what: the GPU (WebGPU) or the CPU (WebAssembly). */
+export interface SpeechEngine {
+  device: 'webgpu' | 'wasm';
+  model: string;
+}
+
+const MIC_CONSTRAINTS: MediaStreamConstraints = {
+  audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+};
 
 export interface LocalWakeCallbacks {
   /** `detail`: download progress ("42 %") or the error message. */
@@ -26,6 +37,8 @@ export interface LocalWakeCallbacks {
   onSpeechStart?: () => void;
   /** What had started was not a sentence after all (too short, or nothing transcribed). */
   onSpeechDropped?: () => void;
+  /** The speech recognition is ready: which model, on the GPU or the CPU. */
+  onEngine?: (engine: SpeechEngine) => void;
 }
 
 /** Sentences waiting for Whisper are dropped beyond this (it can't keep up: people are chatting). */
@@ -41,8 +54,41 @@ export class LocalWakeListener {
   private pending = new Map<number, (text: string | null) => void>();
   private queued = 0;
   private speechStartedAt = 0;
+  /** The microphone stream and audio context in use, watched for the OS taking them away. */
+  private stream: MediaStream | null = null;
+  private audioContext: AudioContext | null = null;
+  private recovering = false;
 
   constructor(private readonly cb: LocalWakeCallbacks) {}
+
+  /**
+   * Back in the foreground: phones (and laptops waking from sleep) may have taken the
+   * microphone away or suspended the audio while Iris was hidden. Reopen what was lost.
+   */
+  private readonly onVisibility = () => {
+    if (document.visibilityState === 'visible') void this.recover();
+  };
+
+  private async recover() {
+    if (!this.ready || this.stopped || this.paused || !this.vad || this.recovering) return;
+    this.recovering = true;
+    try {
+      if (this.audioContext && this.audioContext.state !== 'running' && this.audioContext.state !== 'closed') {
+        await this.audioContext.resume().catch(() => {});
+      }
+      const track = this.stream?.getAudioTracks()[0];
+      if (!track || track.readyState === 'ended' || track.muted) {
+        console.warn('[iris:wake] the microphone was lost while Iris was in the background: reopening it');
+        await this.vad.pause().catch(() => {});
+        await this.vad.start();
+        this.cb.onStatus('listening');
+      }
+    } catch (error) {
+      this.cb.onStatus('error', error instanceof Error ? error.message : String(error));
+    } finally {
+      this.recovering = false;
+    }
+  }
 
   async start() {
     this.cb.onStatus('loading');
@@ -55,6 +101,7 @@ export class LocalWakeListener {
           else if (msg.type === 'ready') {
             // console.warn: forwarded to the dev log, like the other voice diagnostics.
             console.warn(`[iris:wake] local Whisper ready (${msg.model}, ${msg.device})`);
+            this.cb.onEngine?.({ device: msg.device, model: msg.model });
             resolve();
           } else if (msg.type === 'result') this.settle(msg.id, msg.text);
           else if (msg.type === 'error') {
@@ -67,9 +114,17 @@ export class LocalWakeListener {
         };
       });
       modelReady.catch(() => {}); // awaited below; never an unhandled rejection meanwhile
-      this.send({ type: 'load' });
+      this.send({ type: 'load', mobile: IS_MOBILE });
 
+      // Ours rather than vad-web's, so it can be resumed after the app was in the background.
+      this.audioContext = new AudioContext();
+      const openMic = async () => {
+        this.stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+        return this.stream;
+      };
       this.vad = await MicVAD.new({
+        audioContext: this.audioContext,
+        resumeStream: openMic,
         model: 'v5',
         baseAssetPath: '/local-ai/vad/',
         // onnxruntime of vad-web's own version, shipped with the app: its JS glue (served by
@@ -81,9 +136,7 @@ export class LocalWakeListener {
         } as unknown as string,
         startOnLoad: false,
         getStream: async () => {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-          });
+          const stream = await openMic();
           console.warn(`[iris:wake] microphone: ${stream.getAudioTracks()[0]?.label || 'unknown'}`);
           return stream;
         },
@@ -117,6 +170,7 @@ export class LocalWakeListener {
       await modelReady;
       if (this.stopped) return;
       this.ready = true;
+      document.addEventListener('visibilitychange', this.onVisibility);
       await this.apply();
     } catch (error) {
       if (this.stopped) return;
@@ -140,12 +194,16 @@ export class LocalWakeListener {
 
   async stop() {
     this.stopped = true;
+    document.removeEventListener('visibilitychange', this.onVisibility);
     this.pending.forEach((resolve) => resolve(null));
     this.pending.clear();
     this.worker?.terminate();
     this.worker = null;
     await this.vad?.destroy().catch(() => {});
     this.vad = null;
+    this.stream = null;
+    await this.audioContext?.close().catch(() => {});
+    this.audioContext = null;
   }
 
   private async apply() {

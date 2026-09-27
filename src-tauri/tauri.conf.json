@@ -25,7 +25,42 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self' ipc: http://ipc.localhost",
+        "script-src": "'self' 'wasm-unsafe-eval' 'unsafe-eval'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: https:",
+        "media-src": "'self' data: blob: mediastream:",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost data: blob: https://api.openai.com https://huggingface.co https://*.huggingface.co https://*.hf.co https://cdn.jsdelivr.net",
+        "worker-src": "'self' blob:",
+        "frame-src": "visual: http://visual.localhost",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'none'"
+      },
+      "devCsp": {
+        "default-src": "'self' ipc: http://ipc.localhost",
+        "script-src": "'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: https:",
+        "media-src": "'self' data: blob: mediastream:",
+        "font-src": "'self' data:",
+        "connect-src": "'self' ipc: http://ipc.localhost ws: data: blob: https://api.openai.com https://huggingface.co https://*.huggingface.co https://*.hf.co https://cdn.jsdelivr.net",
+        "worker-src": "'self' blob:",
+        "frame-src": "visual: http://visual.localhost",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "form-action": "'none'"
+      },
+      "dangerousDisableAssetCspModification": ["style-src"]
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEEyMjA2RTBGNTM0OTM2QzgKUldUSU5rbFREMjRnb2xHWllOdW83YmlZZCtCSVJWNHF4ODVwdUFGNUFPbEVhM0RCejgvaFM5T0EK",
+      "endpoints": ["https://github.com/Sh0ckFR/Iris/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
     }
   },
   "bundle": {

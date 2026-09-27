@@ -1,9 +1,13 @@
 # Builds Iris on every system it supports, on every push and pull request:
-#  - desktop: Rust tests, then the installers (Windows .msi/.exe, macOS .app/.dmg, Linux .deb/.rpm/.AppImage);
+#  - desktop: Rust tests, then the installers — Windows x64 and ARM64 (.msi/.exe), macOS universal
+#    for Apple Silicon and Intel (.app/.dmg), Linux x64 and ARM64 (.deb/.rpm/.AppImage);
+#  - Flatpak: the Linux x64 .deb repackaged as a Flatpak bundle (flatpak/);
 #  - Android: an arm64 APK (signed release APK + AAB when a signing key is configured, else a debug APK);
-#  - iOS: the Rust code compiled for iPhone (an app build needs an Apple developer team to sign it).
+#  - iOS: the Rust code compiled for iPhone, and the app built for the iOS Simulator (a device
+#    build needs an Apple developer team to sign it).
 # Everything is uploaded as workflow artifacts. Pushing a tag v* (e.g. v0.2.0) also publishes a
-# draft GitHub Release with every installer attached.
+# draft GitHub Release with every installer attached, and the updater's latest.json when the
+# updater key is set: publishing the draft makes installed copies of Iris offer the update.
 #
 # Signing is optional and driven by repository secrets (Settings → Secrets and variables →
 # Actions); without them the builds are simply unsigned. See "Signing" in the README.
@@ -14,6 +18,8 @@
 #                      notarization: APPLE_ID + APPLE_PASSWORD (app-specific password) + APPLE_TEAM_ID
 #   Android:           ANDROID_KEYSTORE (base64 .jks) + ANDROID_KEYSTORE_PASSWORD + ANDROID_KEY_ALIAS
 #                      (+ ANDROID_KEY_PASSWORD if it differs from the keystore password)
+#   Updates:           TAURI_SIGNING_PRIVATE_KEY (+ TAURI_SIGNING_PRIVATE_KEY_PASSWORD if it has one):
+#                      the key whose public half is plugins.updater.pubkey in tauri.conf.json
 name: Build
 on:
   push:
@@ -32,16 +38,29 @@ jobs:
         include:
           - os: windows-latest
             name: windows
+            family: windows
+          - os: windows-11-arm
+            name: windows-arm64
+            family: windows
+          # One app for both Mac processors (Apple Silicon and Intel).
           - os: macos-latest
             name: macos
+            family: macos
+            targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: --target universal-apple-darwin
           - os: ubuntu-24.04
             name: linux
+            family: linux
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+            family: linux
     runs-on: ${{ matrix.os }}
     env:
       HAS_WINDOWS_PFX: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
       HAS_AZURE_SIGNING: ${{ secrets.AZURE_CLIENT_SECRET != '' }}
       HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
       HAS_APPLE_NOTARY: ${{ secrets.APPLE_ID != '' }}
+      HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -49,11 +68,14 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.targets }}
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          key: ${{ matrix.name }}
       - name: Linux system libraries
-        if: matrix.name == 'linux'
+        if: matrix.family == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
@@ -67,7 +89,7 @@ jobs:
 
       # ---- Windows signing: a .pfx certificate, or Azure Trusted Signing.
       - name: Windows signing certificate (.pfx)
-        if: matrix.name == 'windows' && env.HAS_WINDOWS_PFX == 'true'
+        if: matrix.family == 'windows' && env.HAS_WINDOWS_PFX == 'true'
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
@@ -85,7 +107,7 @@ jobs:
             ConvertTo-Json -Depth 5 | Set-Content $config
           "SIGNING_CONFIG=$config" >> $env:GITHUB_ENV
       - name: Azure Trusted Signing
-        if: matrix.name == 'windows' && env.HAS_AZURE_SIGNING == 'true' && env.HAS_WINDOWS_PFX != 'true'
+        if: matrix.family == 'windows' && env.HAS_AZURE_SIGNING == 'true' && env.HAS_WINDOWS_PFX != 'true'
         shell: pwsh
         env:
           AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
@@ -100,7 +122,7 @@ jobs:
 
       # ---- macOS signing ("Developer ID Application") and notarization.
       - name: Apple signing certificate
-        if: matrix.name == 'macos' && env.HAS_APPLE_CERT == 'true'
+        if: matrix.family == 'macos' && env.HAS_APPLE_CERT == 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -119,7 +141,7 @@ jobs:
           if [ -z "$IDENTITY" ]; then echo "APPLE_CERTIFICATE holds no 'Developer ID Application' identity"; exit 1; fi
           echo "APPLE_SIGNING_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
       - name: Apple notarization
-        if: matrix.name == 'macos' && env.HAS_APPLE_CERT == 'true' && env.HAS_APPLE_NOTARY == 'true'
+        if: matrix.family == 'macos' && env.HAS_APPLE_CERT == 'true' && env.HAS_APPLE_NOTARY == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
@@ -131,6 +153,12 @@ jobs:
             echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
           } >> "$GITHUB_ENV"
 
+      # ---- Updates: each installer signed for the updater (.sig), the macOS app also as .app.tar.gz.
+      - name: Updater signing
+        if: env.HAS_UPDATER_KEY == 'true'
+        shell: bash
+        run: echo 'UPDATER_CONFIG={"bundle":{"createUpdaterArtifacts":true}}' >> "$GITHUB_ENV"
+
       - name: Installers
         shell: bash
         env:
@@ -138,9 +166,12 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-        run: npx tauri build ${SIGNING_CONFIG:+--config "$SIGNING_CONFIG"}
+          # Read by the bundler when UPDATER_CONFIG asks for updater artifacts.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build ${{ matrix.args }} ${SIGNING_CONFIG:+--config "$SIGNING_CONFIG"} ${UPDATER_CONFIG:+--config "$UPDATER_CONFIG"}
       - name: Check the Windows signatures
-        if: matrix.name == 'windows' && env.SIGNING_CONFIG != ''
+        if: matrix.family == 'windows' && env.SIGNING_CONFIG != ''
         shell: pwsh
         run: |
           $files = Get-ChildItem src-tauri/target/release/bundle -Recurse -Include *.exe, *.msi
@@ -150,13 +181,39 @@ jobs:
         with:
           name: iris-${{ matrix.name }}
           path: |
-            src-tauri/target/release/bundle/**/*.msi
-            src-tauri/target/release/bundle/**/*.exe
-            src-tauri/target/release/bundle/**/*.dmg
-            src-tauri/target/release/bundle/**/*.deb
-            src-tauri/target/release/bundle/**/*.rpm
-            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/**/release/bundle/**/*.msi
+            src-tauri/target/**/release/bundle/**/*.exe
+            src-tauri/target/**/release/bundle/**/*.dmg
+            src-tauri/target/**/release/bundle/**/*.app.tar.gz
+            src-tauri/target/**/release/bundle/**/*.deb
+            src-tauri/target/**/release/bundle/**/*.rpm
+            src-tauri/target/**/release/bundle/**/*.AppImage
+            src-tauri/target/**/release/bundle/**/*.sig
           if-no-files-found: warn
+
+  flatpak:
+    needs: desktop
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: iris-linux
+          path: linux
+      - name: Flatpak sources
+        run: |
+          deb="$(find linux -name '*_amd64.deb' | head -n 1)"
+          test -n "$deb"
+          cp "$deb" flatpak/iris.deb
+          git clone --depth 1 https://github.com/flathub/shared-modules.git flatpak/shared-modules
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: iris.flatpak
+          manifest-path: flatpak/com.iris.assistant.yml
+          cache-key: flatpak-builder-${{ github.sha }}
 
   android:
     runs-on: ubuntu-24.04
@@ -225,29 +282,56 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          cache-on-failure: true
+      - run: npm ci
       - name: Compile for iPhone
         working-directory: src-tauri
         run: |
           mkdir -p ../dist
           cargo check --lib --target aarch64-apple-ios
+      # The whole app (Xcode project, Swift, Info.plist, icons) for the Simulator: no Apple
+      # signing needed, and it catches what `cargo check` can't.
+      - name: iOS project
+        run: |
+          npx tauri ios init --ci
+          node scripts/mobile-setup.mjs ios
+      - name: App for the iOS Simulator
+        run: npx tauri ios build --target aarch64-sim --debug --ci
+      - name: Simulator app archive
+        run: |
+          app="$(find src-tauri/gen/apple/build -name '*.app' -type d -prune | head -n 1)"
+          if [ -n "$app" ]; then ditto -c -k --keepParent "$app" iris-ios-simulator.zip; else echo "::warning::no .app found"; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iris-ios-simulator
+          path: iris-ios-simulator.zip
+          if-no-files-found: warn
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [desktop, android]
+    # The Flatpak is attached when it built; its failure doesn't hold the release back.
+    if: always() && startsWith(github.ref, 'refs/tags/v') && needs.desktop.result == 'success' && needs.android.result == 'success'
+    needs: [desktop, android, flatpak]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
+      - name: Updater manifest (latest.json)
+        run: node scripts/updater-manifest.mjs artifacts "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY"
       - name: Draft release with the installers
         uses: softprops/action-gh-release@v2
         with:

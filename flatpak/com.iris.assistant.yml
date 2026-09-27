@@ -1,0 +1,53 @@
+# Iris as a Flatpak, built from the .deb of the same CI run (.github/workflows/build.yml, job
+# "flatpak"): the CI copies it here as iris.deb and clones flathub/shared-modules next to this file.
+#
+# Iris controls the computer: the programs she starts for the user (apps, shell commands and
+# skills, volume, MCP servers) run on the host through `flatpak-spawn --host` (src-tauri/src/
+# sandbox.rs), which is what org.freedesktop.Flatpak grants. Her files stay in ~/.var/app/<id>.
+id: com.iris.assistant
+runtime: org.gnome.Platform
+# WebKitGTK 4.1 (Tauri's webview) ships with the GNOME runtime.
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: iris
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --share=network
+  - --device=dri
+  # The microphone (always-on listening) and her voice.
+  - --socket=pulseaudio
+  # Files the user asks about, apps' .desktop entries, login entry (see autostart in windows.rs).
+  - --filesystem=home
+  - --filesystem=host-os:ro
+  - --filesystem=/var/lib/flatpak/exports/share/applications:ro
+  - --filesystem=xdg-config/autostart:create
+  # Programs run on the host; vault password in the Secret Service; tray icon; notifications.
+  - --talk-name=org.freedesktop.Flatpak
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+modules:
+  # The tray icon: tray-icon loads libappindicator at run time, not in the GNOME runtime.
+  - shared-modules/libappindicator/libappindicator-gtk3-12.10.json
+
+  - name: iris
+    buildsystem: simple
+    sources:
+      - type: file
+        path: iris.deb
+      - type: file
+        path: com.iris.assistant.metainfo.xml
+    build-commands:
+      - ar -x iris.deb
+      - tar -xf data.tar.*
+      - install -Dm755 "$(find usr/bin -type f | head -n 1)" /app/bin/iris
+      - install -Dm644 "$(find usr/share/applications -name '*.desktop' | head -n 1)" /app/share/applications/com.iris.assistant.desktop
+      - desktop-file-edit --set-key=Exec --set-value=iris --set-icon=com.iris.assistant /app/share/applications/com.iris.assistant.desktop
+      - |
+        for icon in usr/share/icons/hicolor/*/apps/*.png; do
+          size="$(basename "$(dirname "$(dirname "$icon")")")"
+          install -Dm644 "$icon" "/app/share/icons/hicolor/$size/apps/com.iris.assistant.png"
+        done
+      - install -Dm644 com.iris.assistant.metainfo.xml /app/share/metainfo/com.iris.assistant.metainfo.xml

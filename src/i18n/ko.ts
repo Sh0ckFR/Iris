@@ -95,9 +95,20 @@ export const ko: Messages = {
       mcp: 'MCP 서비스',
       webSearch: '무제한 웹 검색',
       webAnswers: '검색 답변',
+      speechEngine: '음성 인식',
+    },
+    engine: {
+      gpu: (model: string) => `${model} · GPU`,
+      cpu: (model: string) => `${model} · CPU`,
+      cpuHint: '이 웹뷰에는 WebGPU가 없습니다. Whisper가 더 가벼운 "base" 모델로 프로세서에서 실행됩니다(더 느리고 정확도가 약간 낮음).',
+      cpuHintLinux: 'WebKitGTK는 보통 WebGPU를 지원하지 않습니다. Whisper가 더 가벼운 "base" 모델로 프로세서에서 실행됩니다(더 느리고 정확도가 약간 낮음).',
     },
     wake: { off: '오프라인', loading: (detail) => `불러오는 중 ${detail}`, listening: '듣는 중', paused: '세션 중', error: '오류' },
   },
+  updates: {
+    toast: (version: string) => `Iris ${version} 버전을 사용할 수 있습니다 — 설정 → 업데이트`,
+  },
+
   mini: {
     connecting: '연결 중…',
     open: 'Iris 열기',
@@ -466,6 +477,19 @@ export const ko: Messages = {
       tavilyKey: 'Tavily API 키(선택)',
       tavilyHint: 'Iris는 이미 웹 전체를 무료로 무제한 검색하고 찾은 페이지를 읽습니다. Tavily 키를 넣으면 검색마다 완성된 답변이 더해지고, 할당량(월 1,000회)을 다 쓰면 무료 검색이 이어받습니다 · ',
     },
+    updates: {
+      title: '업데이트',
+      current: (version: string) => `버전 ${version}`,
+      check: '업데이트 확인',
+      checking: '확인 중…',
+      upToDate: '최신 버전',
+      available: (version: string) => `${version} 버전 사용 가능`,
+      install: '설치 후 다시 시작',
+      downloading: (version: string, progress: string) => `${version} 다운로드 중${progress}…`,
+      restarting: '다시 시작하는 중…',
+      failed: (message: string) => `확인 실패 (${message})`,
+    },
+
     personality: {
       title: '성격',
       address: 'Iris가 나를 어떻게 부를까요?',

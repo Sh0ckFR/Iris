@@ -26,6 +26,7 @@ import { SetupWizard } from './SetupWizard';
 import { DashboardPanel } from './DashboardPanel';
 import { dashboardStore, useDashboards } from '../../lib/dashboards';
 import { syncAutostart } from '../../lib/autostart';
+import { checkForUpdate, useUpdateState } from '../../lib/updates';
 import { Telemetry } from './Telemetry';
 import { BootSequence } from './BootSequence';
 import { playSfx } from '../assistant/sfx';
@@ -67,6 +68,18 @@ export function IrisHUD() {
   }, [t]);
   const [toast, setToast] = useState<Toast | null>(null);
   const openSettings = useCallback(() => setSettingsOpen(true), []);
+  // Updates: looked for once, shortly after launch (released builds that can update themselves,
+  // see lib/updates.ts); Settings installs them.
+  const update = useUpdateState();
+  useEffect(() => {
+    if (!import.meta.env.PROD) return;
+    const timer = window.setTimeout(() => void checkForUpdate(), 15_000);
+    return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (update.phase === 'available') setToast({ text: t.updates.toast(update.version), tone: 'ok' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [update.phase]);
 
   const assistant = useAssistant({ settings, secrets: vault.secrets, onNeedSettings: openSettings });
   const { phase, cancel, pendingAction, respondToAction, greet } = assistant;
@@ -333,7 +346,13 @@ export function IrisHUD() {
         <div className={`hud-badge${assistant.hasBrain ? '' : ' hud-badge--warn'}`} title={t.hud.modelBadgeTitle}>
           {assistant.brainLabel ?? t.hud.noModel}
         </div>
-        <button type="button" className="hud-icon-btn" onClick={openSettings} aria-label={t.hud.settings}>
+        <button
+          type="button"
+          className={`hud-icon-btn${update.phase === 'available' ? ' hud-icon-btn--badge' : ''}`}
+          onClick={openSettings}
+          aria-label={t.hud.settings}
+          title={update.phase === 'available' ? t.updates.toast(update.version) : undefined}
+        >
           <GearIcon />
         </button>
       </header>

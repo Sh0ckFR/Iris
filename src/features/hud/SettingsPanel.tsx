@@ -13,6 +13,7 @@ import { memoryStore, useMemory } from '../../lib/memory';
 import { parseMcpConfig, useMcpStatus } from '../assistant/mcp';
 import { defaultPrice, type Price } from '../../lib/costs';
 import { IS_DESKTOP, OS_NAME, PLATFORM } from '../../lib/platform';
+import { appVersion, checkForUpdate, installUpdate, useUpdatesSupported, useUpdateState } from '../../lib/updates';
 import { LANGUAGES, isUiLanguage, uiLocale, useT, type Messages } from '../../i18n';
 
 const IMAGE_MODELS = ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'] as const;
@@ -60,6 +61,57 @@ function SkillsManager() {
           </li>
         ))}
     </ul>
+  );
+}
+
+/**
+ * This version, and the newest one from the GitHub Releases, where Iris can update herself
+ * (see lib/updates.ts). Not part of Save.
+ */
+function UpdatesSection() {
+  const t = useT().settings.updates;
+  const update = useUpdateState();
+  const supported = useUpdatesSupported();
+  const [version, setVersion] = useState('');
+  useEffect(() => void appVersion.then(setVersion), []);
+  if (!supported) return null;
+  const busy = update.phase === 'checking' || update.phase === 'downloading' || update.phase === 'restarting';
+  const status = (() => {
+    switch (update.phase) {
+      case 'checking':
+        return t.checking;
+      case 'none':
+        return t.upToDate;
+      case 'available':
+        return t.available(update.version);
+      case 'downloading':
+        return t.downloading(update.version, update.percent === null ? '' : ` ${update.percent} %`);
+      case 'restarting':
+        return t.restarting;
+      case 'error':
+        return t.failed(update.message);
+      default:
+        return null;
+    }
+  })();
+  return (
+    <section>
+      <h3>{t.title}</h3>
+      <p className="set-hint">
+        {t.current(version || '—')}
+        {status && ` · ${status}`}
+      </p>
+      {update.phase === 'available' && update.notes && <pre className="set-notes">{update.notes}</pre>}
+      {update.phase === 'available' ? (
+        <button type="button" className="set-btn" onClick={() => void installUpdate()}>
+          {t.install}
+        </button>
+      ) : (
+        <button type="button" className="set-btn set-btn--ghost" disabled={busy} onClick={() => void checkForUpdate()}>
+          {t.check}
+        </button>
+      )}
+    </section>
   );
 }
 
@@ -567,6 +619,8 @@ export function SettingsPanel({ settings, secrets, vaultError, onSave, onConnect
               </label>
             )}
           </section>
+
+          <UpdatesSection />
 
           <section>
             <h3>{t.memory.title}</h3>

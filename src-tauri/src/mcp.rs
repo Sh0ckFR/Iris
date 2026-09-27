@@ -8,9 +8,11 @@ use std::collections::HashMap;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    process::{Child, ChildStdin, Command},
+    process::{Child, ChildStdin},
     sync::Mutex,
 };
+#[cfg(windows)]
+use tokio::process::Command;
 
 type CmdResult<T> = Result<T, String>;
 
@@ -48,24 +50,26 @@ pub async fn mcp_start(
     }
 
     // Windows: through cmd so that `npx`, `uvx`… (.cmd scripts) resolve like in a terminal.
+    let home = app.path().home_dir().ok();
     #[cfg(windows)]
     let mut cmd = {
         let mut c = Command::new("cmd");
         c.arg("/C").arg(&command).args(&args);
         c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        c.envs(&env);
+        if let Some(home) = &home {
+            c.current_dir(home);
+        }
         c
     };
+    // Flatpak: the server is one of the user's programs, started outside the sandbox.
     #[cfg(not(windows))]
     let mut cmd = {
-        let mut c = Command::new(&command);
+        let mut c = crate::sandbox::tokio_command(&command, &env, home.as_deref());
         c.args(&args);
         c
     };
-    if let Ok(home) = app.path().home_dir() {
-        cmd.current_dir(home);
-    }
-    cmd.envs(env)
-        .stdin(std::process::Stdio::piped())
+    cmd.stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);

@@ -5,7 +5,11 @@
   <!-- iOS refuses microphone access (and kills the app) without this usage string. -->
   <key>NSMicrophoneUsageDescription</key>
   <string>Iris listens to your voice commands.</string>
-  <!-- Keep listening and speaking while the screen is locked or another app is in front. -->
+  <!-- Audio in the background: Iris finishes what she is saying when the screen locks or another
+       app comes to the front. The webview itself (WKWebView) suspends microphone capture in the
+       background whatever this says, so she can't hear her name then; when she comes back on
+       screen, localWake.ts reopens the microphone. App Review accepts this mode only for audio
+       the user hears: if it objects, remove it (speech then stops with the screen). -->
   <key>UIBackgroundModes</key>
   <array>
     <string>audio</string>

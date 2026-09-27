@@ -98,9 +98,20 @@ export const it: Messages = {
       mcp: 'Servizi MCP',
       webSearch: 'Ricerca web illimitata',
       webAnswers: 'Risposte di ricerca',
+      speechEngine: 'Riconoscimento vocale',
+    },
+    engine: {
+      gpu: (model: string) => `${model} · GPU`,
+      cpu: (model: string) => `${model} · CPU`,
+      cpuHint: 'Nessun WebGPU in questa webview: Whisper gira sul processore, con il modello «base», più leggero (più lento e un po’ meno preciso).',
+      cpuHintLinux: 'WebKitGTK di solito non offre WebGPU: Whisper gira sul processore, con il modello «base», più leggero (più lento e un po’ meno preciso).',
     },
     wake: { off: 'INATTIVO', loading: (detail) => `CARICAMENTO ${detail}`, listening: 'IN ASCOLTO', paused: 'IN SESSIONE', error: 'ERRORE' },
   },
+  updates: {
+    toast: (version: string) => `Iris ${version} è disponibile — Impostazioni → Aggiornamenti`,
+  },
+
   mini: {
     connecting: 'Connessione…',
     open: 'Apri Iris',
@@ -480,6 +491,19 @@ export const it: Messages = {
       tavilyHint:
         'Iris cerca già in tutto il web gratis e senza limiti, e legge le pagine che trova. Una chiave Tavily aggiunge una risposta pronta a ogni ricerca; la ricerca gratuita subentra quando la quota (1.000/mese) si esaurisce · ',
     },
+    updates: {
+      title: 'Aggiornamenti',
+      current: (version: string) => `Versione ${version}`,
+      check: 'Cerca aggiornamenti',
+      checking: 'ricerca…',
+      upToDate: 'aggiornata',
+      available: (version: string) => `versione ${version} disponibile`,
+      install: 'Installa e riavvia',
+      downloading: (version: string, progress: string) => `download di ${version}${progress}…`,
+      restarting: 'riavvio…',
+      failed: (message: string) => `ricerca non riuscita (${message})`,
+    },
+
     personality: {
       title: 'Personalità',
       address: 'Come deve rivolgersi a te Iris?',

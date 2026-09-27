@@ -19,14 +19,15 @@ import ortWasmUrl from '@whisper-ort/ort-wasm-simd-threaded.asyncify.wasm?url';
  *
  * The model is downloaded from Hugging Face on first use, then served from the browser cache.
  * WebGPU when available ("small": accurate and fast on a GPU), otherwise WebAssembly with the
- * lighter "base" model (small would be too slow on a CPU).
+ * lighter "base" model (small would be too slow on a CPU). Phones and tablets take "base" even
+ * with WebGPU: small (≈ 390 MB) strains a mobile webview's memory and the battery.
  *
  * The same worker computes voiceprints (speaker embeddings, see lib/voiceprint.ts) when asked:
  * a separate, smaller model, loaded only if voice recognition is used.
  */
 
 export type AsrRequest =
-  | { type: 'load' }
+  | { type: 'load'; mobile?: boolean }
   | { type: 'transcribe'; id: number; audio: Float32Array; language: string | null }
   | { type: 'embed'; id: number; audio: Float32Array };
 
@@ -109,7 +110,7 @@ async function gpuAdapter(): Promise<{ features: { has(name: string): boolean } 
   }
 }
 
-function load(): Promise<Asr> {
+function load(mobile = false): Promise<Asr> {
   asr ??= (async () => {
     // Overall download progress across the model's files.
     const files = new Map<string, { loaded: number; total: number }>();
@@ -139,8 +140,9 @@ function load(): Promise<Asr> {
     if (adapter) {
       try {
         const encoder = adapter.features.has('shader-f16') ? 'fp16' : 'fp32';
-        const loaded = await open('whisper-small', { device: 'webgpu', dtype: { encoder_model: encoder, decoder_model_merged: 'q4' } });
-        post({ type: 'ready', device: 'webgpu', model: `whisper-small (encoder ${encoder})` });
+        const name = mobile ? 'whisper-base' : 'whisper-small';
+        const loaded = await open(name, { device: 'webgpu', dtype: { encoder_model: encoder, decoder_model_merged: 'q4' } });
+        post({ type: 'ready', device: 'webgpu', model: `${name} (encoder ${encoder})` });
         return loaded;
       } catch (error) {
         console.warn('[iris:wake] WebGPU unavailable for Whisper, falling back to WebAssembly', error);
@@ -193,7 +195,7 @@ async function transcribe({ model, processor, tokenizer }: Asr, audio: Float32Ar
 self.onmessage = async (e: MessageEvent<AsrRequest>) => {
   const msg = e.data;
   if (msg.type === 'load') {
-    load().catch((error) => post({ type: 'error', message: error instanceof Error ? error.message : String(error) }));
+    load(msg.mobile).catch((error) => post({ type: 'error', message: error instanceof Error ? error.message : String(error) }));
     return;
   }
   try {

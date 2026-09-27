@@ -20,15 +20,19 @@ One codebase, the same features everywhere the OS allows them.
 
 | | Windows | macOS | Linux | Android / iOS |
 |---|---|---|---|---|
+| Builds | x64, ARM64 | universal (Apple Silicon + Intel) | x64, ARM64 · .deb, .rpm, AppImage, Flatpak | Android arm64 · iOS |
 | HUD, conversation, voice, memory, web, widgets, creation, alerts, schedule | ✅ | ✅ | ✅ | ✅ |
-| Tray / menu bar, mini window, Ctrl+Shift+J, start at login | ✅ | ✅ (Dock click reopens) | ✅ (tray menu; the shortcut needs X11) | — (full-screen app) |
+| Tray / menu bar, mini window, Ctrl+Shift+J, start at login | ✅ | ✅ (Dock click reopens) | ✅ (tray menu; on Wayland the shortcut goes through the desktop portal²) | — (full-screen app) |
+| Updates from inside the app | ✅ | ✅ | ✅ AppImage (.deb, .rpm, Flatpak: the system's tools) | — (store) |
+| Listening while Iris is not on screen | ✅ (tray) | ✅ (menu bar) | ✅ (tray) | Android: ✅ (notification) · iOS: — ³ |
 | Open apps, volume, files, shell commands, Trash | ✅ | ✅ | ✅ (`.desktop` entries, pactl / wpctl / amixer) | files in the app's sandbox only |
 | Window management (`manage_window`) | Win32 | System Events¹ | EWMH over X11² | — |
 | Look at the screen, mouse & keyboard (`use_computer`) | ✅ + UI Automation elements | ✅ (screenshot-guided)¹ | ✅ (screenshot-guided)² | — |
 | MCP servers | ✅ | ✅ | ✅ | — (no child processes) |
 
 ¹ macOS asks once for **Screen Recording**, **Accessibility** and **Automation (System Events)**.
-² On a **Wayland** session only XWayland windows can be listed and driven; global shortcuts and screen capture depend on the compositor (screenshots go through the desktop portal).
+² On a **Wayland** session only XWayland windows can be listed and driven; Ctrl+Shift+J is asked from the desktop portal's *GlobalShortcuts* (GNOME 48+, KDE Plasma 5.27+, which may ask you to confirm it) and screenshots go through the portal too.
+³ iOS suspends the webview's microphone in the background: Iris finishes speaking, and listens again as soon as she is back on screen. Android keeps listening through a foreground service, shown as an ongoing notification (with *Quit*).
 
 **Responsive HUD.** Above 900 × 560 px the panels float and can be dragged and resized. On a phone or a small window, a **compact layout** shows one panel at a time (eye, conversation, cards, visual, dashboard, knowledge graph, telemetry) with tabs; a new card or visual comes to the front by itself. Safe areas (notch, gesture bar), touch targets and 16 px fields (no iOS zoom) are handled.
 
@@ -37,7 +41,7 @@ One codebase, the same features everywhere the OS allows them.
 ## Features
 
 ### 🎙️ Voice — always listening, no button
-- **Local listening**: Silero VAD cuts sentences, **Whisper small on the GPU** (WebGPU; Whisper base on the CPU otherwise) transcribes them on the device.
+- **Local listening**: Silero VAD cuts sentences, **Whisper small on the GPU** (WebGPU; Whisper base on the CPU otherwise, and on phones and tablets) transcribes them on the device. The telemetry shows which one runs, and where (GPU / CPU).
 - **Only her name triggers her**, at the start or end of a sentence (*"Iris, open the calculator"*, *"…, Iris, please"*; usual misspellings accepted). The one exception: the answer to a question she just asked, within 8 s.
 - **Talking over her pauses her** mid-syllable; with "Iris" in your sentence she drops her reply, otherwise she resumes (at most 12 s later). *"Iris, stop"* or **Esc** silence her.
 - **Voice recognition** (optional): three sentences give a 256-number voiceprint (never audio). Iris can then answer only known voices, and keeps only the stretches spoken by one when others talk around you. Manage voices in *Settings → Recognised voices*.
@@ -128,7 +132,7 @@ flowchart LR
 
 `useAssistant.send()` tries a local command first; otherwise it creates a task, selects tools, and streams the answer (Vercel AI SDK, up to 6 tool steps), speaking it sentence by sentence. Tools only **propose** actions: outside autonomous mode an approval card must be accepted before Rust runs them, and Rust applies its own checks. The same web app renders the main HUD and the desktop mini window (`App.tsx` checks the window label). OS specifics live behind `cfg` in Rust (`windows.rs`, `computer.rs`, `system.rs`) and `src/lib/platform.ts` in the UI, which also removes desktop-only tools on phones.
 
-**Stack**: Tauri 2 (plugins http, opener, stronghold, log, global-shortcut, autostart) · `xcap`, `enigo`, `uiautomation` + `windows` (Windows), System Events (macOS), `x11rb` (Linux) · React 19, TypeScript 6, Vite 8 · Vercel AI SDK 7 + Zod · `@ricky0123/vad-web`, `@huggingface/transformers`, Piper · Three.js / React Three Fiber, Framer Motion, React Flow · Stronghold + `keyring`.
+**Stack**: Tauri 2 (plugins http, opener, stronghold, log, global-shortcut, autostart, updater, process) · `xcap`, `enigo`, `uiautomation` + `windows` (Windows), System Events (macOS), `x11rb` + `ashpd` (Linux: X11 and the Wayland portal) · `netguard.rs` (public addresses only), `visuals.rs` (the `visual://` origin), `sandbox.rs` (Flatpak) · React 19, TypeScript 6, Vite 8 · Vercel AI SDK 7 + Zod · `@ricky0123/vad-web`, `@huggingface/transformers`, Piper · Three.js / React Three Fiber, Framer Motion, React Flow · Stronghold + `keyring`.
 
 **Layout**: `src/features/assistant/` (brain, tools, voice), `src/features/hud/` (HUD, widgets, maps, compact layout), `src/lib/` (settings, memory, costs, platform…), `src/i18n/` (one file per language, typed against `en.ts`), `src-tauri/src/` (Rust commands).
 
@@ -162,6 +166,11 @@ npm run android:build
 npm run ios:init           # once, on a Mac
 npm run ios:dev
 npm run ios:build
+
+# Flatpak (Linux), from the .deb built above (as the CI does):
+cp src-tauri/target/release/bundle/deb/*_amd64.deb flatpak/iris.deb
+git clone --depth 1 https://github.com/flathub/shared-modules.git flatpak/shared-modules
+flatpak-builder --user --install --force-clean build-flatpak flatpak/com.iris.assistant.yml
 ```
 The first Rust build takes several minutes. Whisper (≈ 390 MB small / 73 MB base) and Piper voices (≈ 60 MB) are downloaded once, on first use.
 
@@ -171,7 +180,7 @@ npm test                                             # Vitest: tools, maps, aler
 cd src-tauri && cargo test                           # Rust unit tests
 cd src-tauri && cargo test -- --ignored --nocapture  # desktop tests (moves the mouse!) + search engines
 ```
-CI (`.github/workflows/`) type-checks and tests on every push, builds installers on Windows, macOS and Linux, an APK for Android, and compiles the Rust code for iOS. Installers are attached to each run (**Artifacts**); pushing a tag `v*` (e.g. `v0.2.0`) also drafts a **GitHub Release** with all of them.
+CI (`.github/workflows/`) type-checks and tests on every push, builds installers for Windows (x64, ARM64), macOS (universal) and Linux (x64, ARM64, plus a Flatpak), an arm64 APK for Android, and the app for the iOS Simulator. Installers are attached to each run (**Artifacts**); pushing a tag `v*` (e.g. `v0.2.0`) also drafts a **GitHub Release** with all of them and, when the updater key is set, the `latest.json` that installed copies of Iris check: **publishing the draft** is what offers the update.
 
 ### Signing
 
@@ -184,6 +193,13 @@ Optional: add these **repository secrets** (*Settings → Secrets and variables 
 | macOS | `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD` | Base64 of a *Developer ID Application* `.p12` (Apple Developer Program). |
 | macOS notarization | `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | `APPLE_PASSWORD` is an [app-specific password](https://account.apple.com). |
 | Android | `ANDROID_KEYSTORE`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (+ `ANDROID_KEY_PASSWORD` if different) | Base64 of a `.jks`; CI then builds a signed release APK and an AAB for the Play Store. |
+| Updates (all desktops) | `TAURI_SIGNING_PRIVATE_KEY` (+ `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if it has one) | The content of the private key whose public half is `plugins.updater.pubkey` in `tauri.conf.json`. Iris only installs updates signed with it. |
+
+```bash
+# Updater key pair — only if you replace the one already configured (the public key then goes
+# into tauri.conf.json → plugins.updater.pubkey; copies signed with the old key stop updating):
+npx tauri signer generate -w ~/.tauri/iris-updater.key
+```
 
 ```bash
 # Android upload key (keep it safe: every update must be signed with it)
@@ -258,7 +274,10 @@ First launch opens a **guided setup**: interface language, **AI account** (OpenA
 - **Microphone** analysed locally; audio only leaves after "Iris".
 - **Approvals** show exact parameters and a risk level; **prompt injection** guard: after reading outside content, risky actions ask even in autonomous mode (`untrusted.ts`).
 - **Rust guards**: absolute paths, protected system folders on every OS, no overwriting, deletion to the Trash, validated app names, whitelisted volume actions.
-- **Sandboxed visuals** (`<iframe sandbox>`), **screen** captured only on request and never stored, **MCP** servers only from your own configuration.
+- **Public internet only** for `read_webpage` / web search and HTTP skills (`netguard.rs`): no `localhost`, private network, link-local or cloud-metadata address, whether written in the URL, reached through a redirect or behind a DNS name.
+- **Content Security Policy** on the HUD: no inline or remote scripts, no plugins, network access limited to the model and voice services Iris uses (everything else goes through Rust).
+- **Sandboxed visuals** (`<iframe sandbox>` without same-origin, served from their own `visual://` origin), **screen** captured only on request and never stored, **MCP** servers only from your own configuration.
+- **Signed updates**: the updater installs only packages signed with the project's key.
 
 > ⚠️ **Autonomous mode is on by default**: commands, file operations and script skills run without confirmation (except after outside content). Keep approval mode if in doubt.
 
@@ -275,6 +294,7 @@ First launch opens a **guided setup**: interface language, **AI account** (OpenA
 | Whisper model, Piper voices | Webview cache / private file system |
 | Images / saved visuals | `Pictures/Iris/` / `Documents/Iris/` |
 | Start at login | Registry `Run` key, LaunchAgent, or XDG autostart entry (only while enabled) |
+| Flatpak | All of the above under `~/.var/app/com.iris.assistant/` |
 
 ---
 
@@ -285,7 +305,10 @@ First launch opens a **guided setup**: interface language, **AI account** (OpenA
 - Speakers without a headset can briefly pause her with her own echo (the pause can be turned off).
 - Scheduled tasks, alerts and live widgets need Iris running (the tray is enough); checks run every 15 s to 10 min.
 - Accessible UI elements are read on Windows only; macOS and Linux drive other apps from screenshots (less precise on some apps). Wayland limits window management to XWayland windows.
-- Phones and tablets can't control other apps, the screen or the volume, run MCP servers or keep a tray; the OS decides when Iris runs in the background.
+- Linux webviews (WebKitGTK) usually have no WebGPU: Whisper then runs on the CPU with the base model (the telemetry says so).
+- Phones and tablets can't control other apps, the screen or the volume, run MCP servers or keep a tray. Android keeps listening in the background with a notification; iOS stops the microphone while Iris is not on screen.
+- In the Flatpak, the programs Iris starts (apps, commands, skills, MCP servers) run outside the sandbox through `flatpak-spawn --host`, which the package is granted: it is no stricter than the other builds.
+- Web pages and HTTP skills can't reach the local network (a home server, a router): use an MCP server for those.
 - Volume moves in steps; tool selection is a keyword guess (a miss costs one `load_tools` step); memory search is by keywords; at most 6 tool steps per request.
 - Map outlines are Natural Earth 1:110m; first-time geocoding of unusual places needs internet (Nominatim: 1 request/s).
 - Free web search scrapes public result pages: a layout change needs a parser update (`cargo test free_search_engines -- --ignored`).
@@ -294,19 +317,17 @@ First launch opens a **guided setup**: interface language, **AI account** (OpenA
 
 ## Roadmap
 
-**Done**: local wake word and economy voice · token economy (caching, tool selection, routing, summaries) · background mode · screen awareness · memory and knowledge graph · MCP · scheduler, alerts, dashboards, persistent timers · approvals after outside content · widgets, maps, routes, heat maps, tours · cost meter · 14 languages · voice recognition · guided setup · computer use · **Windows, macOS, Linux, Android and iOS, with a responsive compact layout**.
+**Done**: local wake word and economy voice · token economy (caching, tool selection, routing, summaries) · background mode · screen awareness · memory and knowledge graph · MCP · scheduler, alerts, dashboards, persistent timers · approvals after outside content · widgets, maps, routes, heat maps, tours · cost meter · 14 languages · voice recognition · guided setup · computer use · **Windows, macOS, Linux, Android and iOS, with a responsive compact layout** · ARM64 and universal macOS builds, Flatpak · signed in-app updates · strict CSP and SSRF guard · Android background listening · Wayland global shortcut (portal).
 
 **Next up**
 
 | # | Improvement | Effort |
 |---|---|---|
 | 1 | Reminders without AI (*"rappelle-moi à 17 h…"* recognised locally) | 🟢 |
-| 2 | Block `localhost` / private IPs in `web_get` and `skill_http` (SSRF) | 🟢 |
-| 3 | Strict Content Security Policy instead of `"csp": null` | 🟢 |
-| 4 | System alerts (battery, disk, CPU) said aloud | 🟢 |
-| 5 | Scheduled tasks listed and editable in Settings | 🟢 |
-| 6 | Mini window remembers its position and state | 🟢 |
-| 7 | Semantic memory (local embeddings) | 🟡 |
-| 8 | Voice pipeline tests from recorded audio | 🟡 |
+| 2 | System alerts (battery, disk, CPU) said aloud | 🟢 |
+| 3 | Scheduled tasks listed and editable in Settings | 🟢 |
+| 4 | Mini window remembers its position and state | 🟢 |
+| 5 | Semantic memory (local embeddings) | 🟡 |
+| 6 | Voice pipeline tests from recorded audio | 🟡 |
 
 **Later**: accessibility elements on macOS (AX) and Linux (AT-SPI) · native Wayland window control through the portals · local model for small talk and a full offline mode · MCP catalogue with guided OAuth · long-running agent tasks · Pyodide code interpreter · calendar & email, smart home, clipboard, more document formats · live interpreter mode · wake word and local commands in more languages · settings and skills in files with export.

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.iris.assistant</id>
+  <name>Iris</name>
+  <summary>AI assistant with a holographic HUD and always-on local voice</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <launchable type="desktop-id">com.iris.assistant.desktop</launchable>
+  <url type="homepage">https://github.com/Sh0ckFR/Iris</url>
+  <description>
+    <p>
+      Iris listens locally (voice detection and Whisper run on your computer) and answers when
+      you say her name. She thinks with OpenAI, Anthropic or Google Gemini, remembers what
+      matters, reads the web, shows data as widgets and maps, and can drive your computer.
+    </p>
+  </description>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+</component>

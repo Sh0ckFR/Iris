@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { marked } from 'marked';
 import type { VisualBriefing } from '../assistant/tools';
 import { Widget } from './widgets/Widget';
@@ -51,6 +51,29 @@ export function visualDocument(v: VisualBriefing): string {
 /** While streaming, the preview reloads at most this often (each reload re-runs the page). */
 const PREVIEW_INTERVAL_MS = 1200;
 
+/**
+ * The preview's address: the page is served by Rust from its own origin, `visual://` (see
+ * visuals.rs) — an `<iframe srcdoc>` would inherit the HUD's strict Content-Security-Policy,
+ * which forbids the inline scripts and CDN libraries generated pages use.
+ */
+function usePreviewUrl(id: string, doc: string, onError: (message: string) => void): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  const version = useRef(0);
+  const key = id.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 64) || 'visual';
+  useEffect(() => {
+    let current = true;
+    const n = ++version.current;
+    invoke('visual_publish', { key, html: doc })
+      .then(() => current && setUrl(`${convertFileSrc(key, 'visual')}?v=${n}`))
+      .catch((e) => current && onError(e instanceof Error ? e.message : String(e)));
+    return () => {
+      current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, doc]);
+  return url;
+}
+
 export function VisualView({ visual }: { visual: VisualBriefing }) {
   const tr = useT();
   const t = tr.visual;
@@ -62,6 +85,7 @@ export function VisualView({ visual }: { visual: VisualBriefing }) {
   const [saved, setSaved] = useState<Record<string, string>>({});
   const [flash, setFlash] = useState<string | null>(null);
   const codeRef = useRef<HTMLPreElement>(null);
+  const previewUrl = usePreviewUrl(visual.id, doc, (message) => setFlash(tr.common.failed(message)));
 
   // Live preview, throttled while the content streams in.
   useEffect(() => {
@@ -183,7 +207,7 @@ export function VisualView({ visual }: { visual: VisualBriefing }) {
           className={`vis-frame vis-frame--${visual.format}`}
           title={visual.heading}
           sandbox="allow-scripts allow-forms allow-modals"
-          srcDoc={doc}
+          src={previewUrl ?? undefined}
         />
       ) : (
         <pre ref={codeRef} className="vis-code">

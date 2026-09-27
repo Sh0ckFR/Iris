@@ -1,9 +1,14 @@
 mod computer;
 mod mcp;
 mod memory;
+mod netguard;
+#[cfg(target_os = "linux")]
+mod portal;
+mod sandbox;
 mod screen;
 mod system;
 mod vault;
+mod visuals;
 mod windows;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -24,6 +29,8 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        // The pages Iris creates, each from its own origin (see visuals.rs).
+        .register_uri_scheme_protocol(visuals::SCHEME, |_ctx, request| visuals::serve(&request))
         .manage(system::TelemetryState::default())
         .manage(mcp::McpState::default())
         // Tray icon, mini window, Ctrl+Shift+J; closing the window keeps Iris in the tray.
@@ -48,8 +55,11 @@ pub fn run() {
             system::web_get,
             system::save_visual,
             system::save_image,
+            visuals::visual_publish,
             windows::window_control,
             windows::set_tray_labels,
+            windows::autostart,
+            windows::updates_supported,
             screen::capture_screen,
             memory::memory_read,
             memory::memory_write,

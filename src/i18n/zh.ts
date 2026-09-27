@@ -95,9 +95,20 @@ export const zh: Messages = {
       mcp: 'MCP 服务',
       webSearch: '无限网络搜索',
       webAnswers: '搜索答案',
+      speechEngine: '语音识别',
+    },
+    engine: {
+      gpu: (model: string) => `${model} · GPU`,
+      cpu: (model: string) => `${model} · CPU`,
+      cpuHint: '此 WebView 不支持 WebGPU：Whisper 在处理器上运行，使用更轻量的“base”模型（更慢，准确度略低）。',
+      cpuHintLinux: 'WebKitGTK 通常不支持 WebGPU：Whisper 在处理器上运行，使用更轻量的“base”模型（更慢，准确度略低）。',
     },
     wake: { off: '离线', loading: (detail) => `加载中 ${detail}`, listening: '聆听中', paused: '会话中', error: '错误' },
   },
+  updates: {
+    toast: (version: string) => `Iris ${version} 已发布 — 设置 → 更新`,
+  },
+
   mini: {
     connecting: '连接中…',
     open: '打开 Iris',
@@ -466,6 +477,19 @@ export const zh: Messages = {
       tavilyKey: 'Tavily API 密钥（可选）',
       tavilyHint: 'Iris 已能免费、无限制地搜索整个网络并阅读找到的页面。Tavily 密钥会为每次搜索添加现成的答案；其配额（每月 1,000 次）用完后由免费搜索接替 · ',
     },
+    updates: {
+      title: '更新',
+      current: (version: string) => `版本 ${version}`,
+      check: '检查更新',
+      checking: '正在检查…',
+      upToDate: '已是最新',
+      available: (version: string) => `版本 ${version} 可用`,
+      install: '安装并重启',
+      downloading: (version: string, progress: string) => `正在下载 ${version}${progress}…`,
+      restarting: '正在重启…',
+      failed: (message: string) => `检查失败（${message}）`,
+    },
+
     personality: {
       title: '个性',
       address: 'Iris 应该如何称呼你？',

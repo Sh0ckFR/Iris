@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { Phase } from '../assistant/useAssistant';
-import type { LocalWakeStatus } from '../assistant/localWake';
+import type { LocalWakeStatus, SpeechEngine } from '../assistant/localWake';
+import { PLATFORM } from '../../lib/platform';
 import type { VoiceMode } from '../../lib/settings';
 import { useUsage } from '../../lib/usage';
 import { formatMoneyBoth, useCosts } from '../../lib/costs';
@@ -72,8 +73,8 @@ export function Telemetry({
   voiceReady: boolean;
   voiceActive: boolean;
   webSearch: boolean;
-  /** Always-on listening (local "Iris" detection). */
-  wake: { status: LocalWakeStatus; detail?: string };
+  /** Always-on listening (local "Iris" detection), and the Whisper doing it once loaded. */
+  wake: { status: LocalWakeStatus; detail?: string; engine?: SpeechEngine };
   voiceMode: VoiceMode;
 }) {
   const now = useClock();
@@ -104,11 +105,24 @@ export function Telemetry({
     paused: tt.wake.paused,
     error: tt.wake.error,
   };
-  /** [name, online, state label override] */
-  const systems: [string, boolean, string?][] = [
+  /** Local speech recognition: on the GPU, or on the CPU (slower — no WebGPU in this webview). */
+  const engine = wake.engine;
+  const engineModel = engine?.model.replace(/^whisper-(\w+).*$/, 'Whisper $1') ?? '';
+  /** [name, online, state label override, tooltip] */
+  const systems: [string, boolean, string?, string?][] = [
     [tt.systems.neuralCore, !!brain],
     [tt.systems.voiceMode, voiceReady, voiceMode === 'economy' ? tt.systems.economy : tt.systems.premium],
-    [tt.systems.localListening, wake.status === 'listening' || wake.status === 'paused', wakeState[wake.status].trim()],
+    [tt.systems.localListening, wake.status === 'listening' || wake.status === 'paused', wakeState[wake.status].trim(), wake.status === 'error' ? wake.detail : undefined],
+    ...(engine
+      ? [
+          [
+            tt.systems.speechEngine,
+            true,
+            engine.device === 'webgpu' ? tt.engine.gpu(engineModel) : tt.engine.cpu(engineModel),
+            engine.device === 'wasm' ? (PLATFORM === 'linux' ? tt.engine.cpuHintLinux : tt.engine.cpuHint) : undefined,
+          ] as [string, boolean, string, string?],
+        ]
+      : []),
     ...(voiceMode === 'realtime' ? [[tt.systems.realtimeSession, voiceActive] as [string, boolean]] : []),
     ...(mcp.length
       ? [
@@ -122,8 +136,6 @@ export function Telemetry({
     [tt.systems.webSearch, true],
     [tt.systems.webAnswers, webSearch],
   ];
-  /** The local listening row (its tooltip shows the error). */
-  const wakeRow = 2;
 
   return (
     <aside className="tele" aria-label={tt.label}>
@@ -213,8 +225,8 @@ export function Telemetry({
       </div>
 
       <ul className="tele-systems">
-        {systems.map(([name, ok, state], i) => (
-          <li key={name} className={ok ? 'ok' : 'off'} title={i === wakeRow && wake.status === 'error' ? wake.detail : undefined}>
+        {systems.map(([name, ok, state, tooltip]) => (
+          <li key={name} className={ok ? 'ok' : 'off'} title={tooltip}>
             <span className="tele-sys-dot" />
             {name}
             <span className="tele-sys-state">{state ?? (ok ? tt.online : tt.offline)}</span>

@@ -274,6 +274,11 @@ fn app_roots(app: &AppHandle) -> Vec<PathBuf> {
         for dir in data_dirs.split(':').filter(|d| !d.is_empty()) {
             roots.push(PathBuf::from(dir).join("applications"));
         }
+        // Iris in Flatpak: the host's own entries (the manifest grants host-os:ro).
+        if crate::sandbox::in_flatpak() {
+            roots.push(PathBuf::from("/run/host/usr/local/share/applications"));
+            roots.push(PathBuf::from("/run/host/usr/share/applications"));
+        }
         roots.push(PathBuf::from("/var/lib/flatpak/exports/share/applications"));
         roots.push(PathBuf::from("/var/lib/snapd/desktop/applications"));
         if let Some(home) = &home {
@@ -368,10 +373,17 @@ fn find_installed_app(app: &AppHandle, name: &str) -> Option<PathBuf> {
     best.map(|(_, _, p)| p)
 }
 
-/// A program of that name is on the PATH.
+/// A program of that name is on the PATH (the host's, from a Flatpak sandbox).
 #[cfg(target_os = "linux")]
 fn in_path(program: &str) -> bool {
     use std::os::unix::fs::PermissionsExt;
+    if crate::sandbox::in_flatpak() {
+        return crate::sandbox::command("sh")
+            .args(["-c", "command -v \"$1\" >/dev/null", "sh", program])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+    }
     std::env::var_os("PATH")
         .map(|paths| {
             std::env::split_paths(&paths).any(|dir| {
@@ -389,15 +401,18 @@ fn launch_desktop_entry(entry: &Path) -> CmdResult<()> {
     let quiet = |c: &mut Command| {
         c.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     };
+    use crate::sandbox::command;
     let id = entry.file_name().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
-    let mut gtk = Command::new("gtk-launch");
+    let mut gtk = command("gtk-launch");
     gtk.arg(&id);
     quiet(&mut gtk);
     if gtk.status().map(|s| s.success()).unwrap_or(false) {
         return Ok(());
     }
-    let mut gio = Command::new("gio");
-    gio.arg("launch").arg(entry);
+    // Flatpak sees the host's entries under /run/host; the host knows them by their own path.
+    let host_entry = entry.strip_prefix("/run/host").map(|p| Path::new("/").join(p)).unwrap_or_else(|_| entry.to_path_buf());
+    let mut gio = command("gio");
+    gio.arg("launch").arg(host_entry);
     quiet(&mut gio);
     if gio.status().map(|s| s.success()).unwrap_or(false) {
         return Ok(());
@@ -413,7 +428,7 @@ fn launch_desktop_entry(entry: &Path) -> CmdResult<()> {
         .filter(|part| !(part.len() == 2 && part.starts_with('%')))
         .collect::<Vec<_>>()
         .join(" ");
-    let mut sh = Command::new("sh");
+    let mut sh = crate::sandbox::command("sh");
     sh.args(["-c", &command]);
     quiet(&mut sh);
     sh.spawn().map_err(err)?;
@@ -481,11 +496,15 @@ pub async fn os_open_app(app: AppHandle, name: String) -> CmdResult<String> {
             return Ok(format!("Launched {id}"));
         }
         if let Some(program) = builtin_alias(name).and_then(|list| list.iter().find(|p| in_path(p))) {
-            std::process::Command::new(program).spawn().map_err(err)?;
+            crate::sandbox::command(program).spawn().map_err(err)?;
             return Ok(format!("Launched {program}"));
         }
         // A program name as typed ("firefox", "code"…): run directly, never through a shell.
-        std::process::Command::new(name).spawn().map_err(|_| format!("no application named \"{name}\" was found"))?;
+        // (In Flatpak, `flatpak-spawn` itself starts even when the program doesn't exist.)
+        if crate::sandbox::in_flatpak() && !in_path(name) {
+            return Err(format!("no application named \"{name}\" was found"));
+        }
+        crate::sandbox::command(name).spawn().map_err(|_| format!("no application named \"{name}\" was found"))?;
         Ok(format!("Launched {name}"))
     }
 
@@ -579,7 +598,7 @@ pub async fn os_volume(action: String, steps: u32) -> CmdResult<String> {
             _ => return Err(format!("unknown volume action \"{action}\"")),
         };
         let changed = attempts.iter().any(|(program, args)| {
-            std::process::Command::new(program)
+            crate::sandbox::command(program)
                 .args(args)
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
@@ -778,16 +797,18 @@ async fn run_shell(app: &AppHandle, command: &str, env: &HashMap<String, String>
         let script = format!("[Console]::OutputEncoding = [Text.Encoding]::UTF8; {command}");
         c.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &script]);
         c.as_std_mut().creation_flags(CREATE_NO_WINDOW);
+        c.envs(env).current_dir(home);
         c
     };
+    // Flatpak: the user's shell and programs, outside the sandbox.
     #[cfg(not(windows))]
     let mut cmd = {
-        let mut c = tokio::process::Command::new("sh");
+        let mut c = crate::sandbox::tokio_command("sh", env, Some(home.as_path()));
         c.args(["-c", command]);
         c
     };
 
-    cmd.envs(env).current_dir(home).stdin(std::process::Stdio::null()).kill_on_drop(true);
+    cmd.stdin(std::process::Stdio::null()).kill_on_drop(true);
     match tokio::time::timeout(COMMAND_TIMEOUT, cmd.output()).await {
         Ok(output) => {
             let output = output.map_err(err)?;
@@ -813,7 +834,8 @@ pub struct HttpResult {
 }
 
 /// HTTP request of a user-approved "http" skill. Runs in Rust so skills can reach any public
-/// API (the webview is limited to an allowlist); only http(s), 20 s timeout, body clipped.
+/// API (the webview is limited to an allowlist); only public http(s) addresses (netguard.rs),
+/// 20 s timeout, body clipped.
 #[tauri::command]
 pub async fn skill_http(
     method: String,
@@ -821,23 +843,17 @@ pub async fn skill_http(
     headers: HashMap<String, String>,
     body: Option<String>,
 ) -> CmdResult<HttpResult> {
-    if !(url.starts_with("https://") || url.starts_with("http://")) {
-        return Err("skills can only call http(s) URLs".into());
-    }
+    let url = crate::netguard::check_url(&url)?;
     let method = reqwest::Method::from_bytes(method.to_uppercase().as_bytes()).map_err(err)?;
-    let client = reqwest::Client::builder()
-        .user_agent(concat!("Iris-Assistant/", env!("CARGO_PKG_VERSION")))
-        .timeout(Duration::from_secs(20))
-        .build()
-        .map_err(err)?;
-    let mut request = client.request(method, &url);
+    let client = crate::netguard::client(concat!("Iris-Assistant/", env!("CARGO_PKG_VERSION")), Duration::from_secs(20))?;
+    let mut request = client.request(method, url);
     for (k, v) in headers {
         request = request.header(k, v);
     }
     if let Some(body) = body {
         request = request.body(body);
     }
-    let response = request.send().await.map_err(err)?;
+    let response = request.send().await.map_err(crate::netguard::describe)?;
     let status = response.status().as_u16();
     let content_type = response
         .headers()
@@ -877,25 +893,20 @@ pub struct WebPage {
 }
 
 /// Read-only GET of any public web page (web search results, articles the user asks about).
-/// Runs in Rust: the webview's HTTP client is limited to an allowlist of APIs.
+/// Runs in Rust: the webview's HTTP client is limited to an allowlist of APIs. Never this
+/// computer or the local network (netguard.rs), even through a redirect.
 #[tauri::command]
 pub async fn web_get(url: String, language: Option<String>) -> CmdResult<WebPage> {
-    if !(url.starts_with("https://") || url.starts_with("http://")) {
-        return Err("only http(s) pages can be read".into());
-    }
-    let client = reqwest::Client::builder()
-        .user_agent(BROWSER_UA)
-        .timeout(Duration::from_secs(20))
-        .build()
-        .map_err(err)?;
+    let url = crate::netguard::check_url(&url)?;
+    let client = crate::netguard::client(BROWSER_UA, Duration::from_secs(20))?;
     let lang = language.unwrap_or_else(|| "en".into());
     let mut response = client
-        .get(&url)
+        .get(url)
         .header(reqwest::header::ACCEPT, "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5")
         .header(reqwest::header::ACCEPT_LANGUAGE, format!("{lang},en;q=0.7"))
         .send()
         .await
-        .map_err(err)?;
+        .map_err(crate::netguard::describe)?;
     let status = response.status().as_u16();
     let final_url = response.url().to_string();
     let content_type = response
@@ -1009,8 +1020,9 @@ pub fn mark_app_start() {
 /// its PATH (at most 3 s) and puts it first, so programs resolve as in a terminal. Windows
 /// already gives every app the user's PATH.
 pub fn adopt_login_shell_path() {
+    // In Flatpak, the user's programs run on the host (sandbox.rs), with the host's own PATH.
     #[cfg(all(unix, desktop))]
-    {
+    if !crate::sandbox::in_flatpak() {
         use std::io::Read;
         use std::process::{Command, Stdio};
         let shell = std::env::var("SHELL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| {

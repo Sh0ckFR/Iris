@@ -14,6 +14,11 @@ dist-ssr
 *.tsbuildinfo
 src-tauri/target
 src-tauri/gen/schemas
+# Flatpak build inputs and state (the CI puts the .deb and flathub/shared-modules there).
+flatpak/iris.deb
+flatpak/shared-modules
+.flatpak-builder
+*.flatpak
 *.local
 
 # Secrets — never committed. Iris keeps its API keys in an encrypted vault in the app data

@@ -95,9 +95,20 @@ export const ar: Messages = {
       mcp: 'خدمات MCP',
       webSearch: 'بحث ويب غير محدود',
       webAnswers: 'إجابات البحث',
+      speechEngine: 'التعرّف على الكلام',
+    },
+    engine: {
+      gpu: (model: string) => `${model} · GPU`,
+      cpu: (model: string) => `${model} · CPU`,
+      cpuHint: 'لا يتوفر WebGPU في عارض الويب هذا: يعمل Whisper على المعالج بنموذج «base» الأخف (أبطأ وأقل دقة قليلًا).',
+      cpuHintLinux: 'لا يوفّر WebKitGTK عادةً WebGPU: يعمل Whisper على المعالج بنموذج «base» الأخف (أبطأ وأقل دقة قليلًا).',
     },
     wake: { off: 'غير متصل', loading: (detail) => `جارٍ التحميل ${detail}`, listening: 'تستمع', paused: 'في جلسة', error: 'خطأ' },
   },
+  updates: {
+    toast: (version: string) => `الإصدار ${version} من Iris متاح — الإعدادات ← التحديثات`,
+  },
+
   mini: {
     connecting: 'جارٍ الاتصال…',
     open: 'فتح Iris',
@@ -466,6 +477,19 @@ export const ar: Messages = {
       tavilyKey: 'مفتاح Tavily API (اختياري)',
       tavilyHint: 'تبحث Iris بالفعل في الويب كله مجانًا ودون حدود وتقرأ الصفحات التي تجدها. يضيف مفتاح Tavily إجابة جاهزة لكل بحث؛ ويتولى البحث المجاني عند نفاد حصته (1000 شهريًا) · ',
     },
+    updates: {
+      title: 'التحديثات',
+      current: (version: string) => `الإصدار ${version}`,
+      check: 'البحث عن تحديثات',
+      checking: 'جارٍ البحث…',
+      upToDate: 'محدَّث',
+      available: (version: string) => `الإصدار ${version} متاح`,
+      install: 'التثبيت وإعادة التشغيل',
+      downloading: (version: string, progress: string) => `جارٍ تنزيل ${version}${progress}…`,
+      restarting: 'جارٍ إعادة التشغيل…',
+      failed: (message: string) => `تعذّر البحث (${message})`,
+    },
+
     personality: {
       title: 'الشخصية',
       address: 'كيف تخاطبك Iris؟',

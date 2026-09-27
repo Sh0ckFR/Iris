@@ -95,9 +95,20 @@ export const hi: Messages = {
       mcp: 'MCP सेवाएँ',
       webSearch: 'असीमित वेब खोज',
       webAnswers: 'खोज के उत्तर',
+      speechEngine: 'वाक् पहचान',
+    },
+    engine: {
+      gpu: (model: string) => `${model} · GPU`,
+      cpu: (model: string) => `${model} · CPU`,
+      cpuHint: 'इस वेबव्यू में WebGPU नहीं है: Whisper प्रोसेसर पर हल्के "base" मॉडल के साथ चलता है (धीमा और थोड़ा कम सटीक)।',
+      cpuHintLinux: 'WebKitGTK आमतौर पर WebGPU नहीं देता: Whisper प्रोसेसर पर हल्के "base" मॉडल के साथ चलता है (धीमा और थोड़ा कम सटीक)।',
     },
     wake: { off: 'ऑफ़लाइन', loading: (detail) => `लोड हो रहा है ${detail}`, listening: 'सुन रही है', paused: 'सत्र में', error: 'त्रुटि' },
   },
+  updates: {
+    toast: (version: string) => `Iris ${version} उपलब्ध है — सेटिंग्स → अपडेट`,
+  },
+
   mini: {
     connecting: 'कनेक्ट हो रहा है…',
     open: 'Iris खोलें',
@@ -466,6 +477,19 @@ export const hi: Messages = {
       tavilyKey: 'Tavily API कुंजी (वैकल्पिक)',
       tavilyHint: 'Iris पहले से ही पूरे वेब पर मुफ़्त और असीमित खोज करती है और मिले पेज पढ़ती है। Tavily कुंजी हर खोज में तैयार जवाब जोड़ती है; इसका कोटा (1,000/माह) ख़त्म होने पर मुफ़्त खोज काम संभालती है · ',
     },
+    updates: {
+      title: 'अपडेट',
+      current: (version: string) => `संस्करण ${version}`,
+      check: 'अपडेट खोजें',
+      checking: 'खोज रहे हैं…',
+      upToDate: 'नवीनतम',
+      available: (version: string) => `संस्करण ${version} उपलब्ध`,
+      install: 'इंस्टॉल करें और फिर से शुरू करें',
+      downloading: (version: string, progress: string) => `${version} डाउनलोड हो रहा है${progress}…`,
+      restarting: 'फिर से शुरू हो रहा है…',
+      failed: (message: string) => `जाँच विफल (${message})`,
+    },
+
     personality: {
       title: 'व्यक्तित्व',
       address: 'Iris आपको कैसे संबोधित करे?',

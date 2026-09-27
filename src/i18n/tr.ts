@@ -95,9 +95,20 @@ export const tr: Messages = {
       mcp: 'MCP hizmetleri',
       webSearch: 'Sınırsız web araması',
       webAnswers: 'Arama yanıtları',
+      speechEngine: 'Konuşma tanıma',
+    },
+    engine: {
+      gpu: (model: string) => `${model} · GPU`,
+      cpu: (model: string) => `${model} · CPU`,
+      cpuHint: 'Bu webview’da WebGPU yok: Whisper daha hafif "base" modeliyle işlemcide çalışır (daha yavaş ve biraz daha az doğru).',
+      cpuHintLinux: 'WebKitGTK genellikle WebGPU sunmaz: Whisper daha hafif "base" modeliyle işlemcide çalışır (daha yavaş ve biraz daha az doğru).',
     },
     wake: { off: 'KAPALI', loading: (detail) => `YÜKLENİYOR ${detail}`, listening: 'DİNLİYOR', paused: 'OTURUMDA', error: 'HATA' },
   },
+  updates: {
+    toast: (version: string) => `Iris ${version} kullanılabilir — Ayarlar → Güncellemeler`,
+  },
+
   mini: {
     connecting: 'Bağlanıyor…',
     open: 'Iris’i aç',
@@ -466,6 +477,19 @@ export const tr: Messages = {
       tavilyKey: 'Tavily API anahtarı (isteğe bağlı)',
       tavilyHint: 'Iris zaten tüm web’de ücretsiz ve sınırsız arama yapar, bulduğu sayfaları okur. Tavily anahtarı her aramaya hazır bir yanıt ekler; kotası (ayda 1.000) dolduğunda ücretsiz arama devralır · ',
     },
+    updates: {
+      title: 'Güncellemeler',
+      current: (version: string) => `Sürüm ${version}`,
+      check: 'Güncellemeleri denetle',
+      checking: 'denetleniyor…',
+      upToDate: 'güncel',
+      available: (version: string) => `${version} sürümü kullanılabilir`,
+      install: 'Yükle ve yeniden başlat',
+      downloading: (version: string, progress: string) => `${version} indiriliyor${progress}…`,
+      restarting: 'yeniden başlatılıyor…',
+      failed: (message: string) => `denetim başarısız (${message})`,
+    },
+
     personality: {
       title: 'Kişilik',
       address: 'Iris size nasıl hitap etsin?',

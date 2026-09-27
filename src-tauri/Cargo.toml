@@ -44,6 +44,8 @@ sysinfo = { version = "0.39.6", default-features = false, features = ["system"] 
 base64 = "0.22"
 # HTTP calls of user-approved skills (from Rust: not limited by the webview's URL allowlist).
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+# Checking the host of the addresses those calls reach (netguard.rs: public internet only).
+url = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # OS credential store for the vault password.
@@ -59,6 +61,10 @@ xcap = "0.9"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 # Computer use: mouse and keyboard.
 enigo = "0.6"
+# Updates from the GitHub Releases (signed latest.json), then restart into the new version.
+# Keep major.minor in sync with @tauri-apps/plugin-updater / plugin-process on npm.
+tauri-plugin-updater = "~2.13"
+tauri-plugin-process = "~2.4"
 
 [target.'cfg(windows)'.dependencies]
 # Computer use on Windows: the accessibility tree (buttons, fields… with exact positions) and
@@ -76,10 +82,19 @@ windows = { version = "0.62", features = [
 # The webview's microphone and WebRTC (WebKitGTK refuses them unless asked): the same
 # version and features as Tauri's own (wry).
 webkit2gtk = { version = "=2.0.2", features = ["v2_38"] }
+# The Wayland portal's shortcut activations arrive as a stream (portal.rs).
+futures-util = { version = "0.3", default-features = false }
 
 [target.'cfg(all(unix, not(any(target_os = "macos", target_os = "ios", target_os = "android"))))'.dependencies]
 # Computer use on Linux / BSD: listing and managing windows through the window manager (EWMH).
 x11rb = "0.13"
+
+[target.'cfg(target_os = "linux")'.dependencies.ashpd]
+# Wayland: Ctrl+Shift+J through the desktop portal's GlobalShortcuts (GNOME 48+, KDE Plasma 5.27+),
+# which X11 key grabs can't provide there.
+version = "0.13"
+default-features = false
+features = ["tokio", "global_shortcuts"]
 
 # Optimize dependencies even in dev builds. Stronghold encrypts its vault with scrypt
 # (deliberately expensive); unoptimized, every vault open/save took tens of seconds.

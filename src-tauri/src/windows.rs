@@ -266,6 +266,14 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
     if let Some(icon) = app.default_window_icon() {
         tray = tray.icon(icon.clone());
     }
+    // Linux draws the tray icon from a file: in Flatpak, the default place ($XDG_RUNTIME_DIR)
+    // is private to the sandbox and the desktop shows a generic icon; the app's cache folder
+    // (~/.var/app/<id>/cache) has the same path outside.
+    if crate::sandbox::in_flatpak() {
+        if let Ok(cache) = app.path().app_cache_dir() {
+            tray = tray.temp_dir_path(cache.join("tray-icon"));
+        }
+    }
     tray.build(app)?;
 
     // Ctrl+Shift+J, from any application. (Esc is only registered during computer-use tasks,
@@ -293,9 +301,15 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
         // Iris still works from the tray.
         log::warn!("could not register Ctrl+Shift+J: {e}");
     }
+    // Wayland: the X11 grab above only works over XWayland windows; the desktop portal gives
+    // a real global shortcut where the compositor supports it (see portal.rs).
+    #[cfg(target_os = "linux")]
+    if crate::portal::is_wayland() {
+        crate::portal::listen(app.handle().clone(), toggle_main);
+    }
 
-    // Launch at login: registered only when the setting is on (the web app calls
-    // plugin:autostart|enable / disable). Started that way, Iris goes straight to the tray.
+    // Launch at login: registered only when the setting is on (the web app calls `autostart`
+    // below). Started that way, Iris goes straight to the tray.
     app.handle().plugin(tauri_plugin_autostart::init(
         tauri_plugin_autostart::MacosLauncher::LaunchAgent,
         Some(vec![AUTOSTART_ARG]),
@@ -303,7 +317,63 @@ pub fn setup(app: &mut App) -> tauri::Result<()> {
     if std::env::args().any(|a| a == AUTOSTART_ARG) {
         hide_main(app.handle());
     }
+
+    // Updates: the signed latest.json of the newest GitHub Release (tauri.conf.json → plugins),
+    // checked by the web app; process restarts Iris into the installed version.
+    app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+    app.handle().plugin(tauri_plugin_process::init())?;
     Ok(())
+}
+
+/// Settings → "Start Iris with …": whether Iris starts at login, after setting it when
+/// `enable` is given. The autostart plugin's entry runs Iris's own program file, which inside
+/// Flatpak only exists in the sandbox: there the entry runs `flatpak run <app id>` instead
+/// (the manifest grants access to ~/.config/autostart).
+#[cfg(desktop)]
+#[tauri::command]
+pub fn autostart(app: AppHandle, enable: Option<bool>) -> CmdResult<bool> {
+    if crate::sandbox::in_flatpak() {
+        let id = app.config().identifier.clone();
+        let dir = app.path().home_dir().map_err(err)?.join(".config/autostart");
+        let entry = dir.join(format!("{id}.desktop"));
+        match enable {
+            Some(true) => {
+                std::fs::create_dir_all(&dir).map_err(err)?;
+                let text = format!("[Desktop Entry]\nType=Application\nName=Iris\nExec=flatpak run {id} {AUTOSTART_ARG}\nX-GNOME-Autostart-enabled=true\n");
+                std::fs::write(&entry, text).map_err(err)?;
+            }
+            Some(false) if entry.exists() => std::fs::remove_file(&entry).map_err(err)?,
+            _ => {}
+        }
+        return Ok(entry.exists());
+    }
+    use tauri_plugin_autostart::ManagerExt;
+    let launcher = app.autolaunch();
+    if let Some(enable) = enable {
+        if launcher.is_enabled().map_err(err)? != enable {
+            if enable { launcher.enable() } else { launcher.disable() }.map_err(err)?;
+        }
+    }
+    launcher.is_enabled().map_err(err)
+}
+
+/// Whether this copy of Iris can update itself (Settings → Updates): the Windows and macOS
+/// installs can, and the Linux AppImage; .deb / .rpm packages and Flatpak are updated by the
+/// system's own tools, and phones by their store.
+#[tauri::command]
+pub fn updates_supported() -> bool {
+    if cfg!(any(target_os = "windows", target_os = "macos")) {
+        return true;
+    }
+    cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_some() && !crate::sandbox::in_flatpak()
+}
+
+/// Phones and tablets: the system decides when apps start.
+#[cfg(mobile)]
+#[tauri::command]
+pub fn autostart(enable: Option<bool>) -> CmdResult<bool> {
+    let _ = enable;
+    Ok(false)
 }
 
 /// Phones and tablets: one full-screen window, no tray, no mini window, no global shortcut.

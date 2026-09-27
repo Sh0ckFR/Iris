@@ -95,9 +95,20 @@ export const ja: Messages = {
       mcp: 'MCP サービス',
       webSearch: '無制限ウェブ検索',
       webAnswers: '検索回答',
+      speechEngine: '音声認識',
+    },
+    engine: {
+      gpu: (model: string) => `${model} · GPU`,
+      cpu: (model: string) => `${model} · CPU`,
+      cpuHint: 'この WebView には WebGPU がありません。Whisper は軽量な「base」モデルでプロセッサ上で動作します（遅く、精度もやや下がります）。',
+      cpuHintLinux: 'WebKitGTK は通常 WebGPU に対応していません。Whisper は軽量な「base」モデルでプロセッサ上で動作します（遅く、精度もやや下がります）。',
     },
     wake: { off: 'オフライン', loading: (detail) => `読み込み中 ${detail}`, listening: '聞き取り中', paused: 'セッション中', error: 'エラー' },
   },
+  updates: {
+    toast: (version: string) => `Iris ${version} が利用可能です — 設定 → アップデート`,
+  },
+
   mini: {
     connecting: '接続中…',
     open: 'Iris を開く',
@@ -466,6 +477,19 @@ export const ja: Messages = {
       tavilyKey: 'Tavily API キー（任意）',
       tavilyHint: 'Iris はすでにウェブ全体を無料・無制限で検索し、見つけたページを読みます。Tavily キーがあると各検索に回答が付きます。割り当て（月 1,000 回）を使い切ると無料検索が引き継ぎます · ',
     },
+    updates: {
+      title: 'アップデート',
+      current: (version: string) => `バージョン ${version}`,
+      check: 'アップデートを確認',
+      checking: '確認中…',
+      upToDate: '最新です',
+      available: (version: string) => `バージョン ${version} が利用可能`,
+      install: 'インストールして再起動',
+      downloading: (version: string, progress: string) => `${version} をダウンロード中${progress}…`,
+      restarting: '再起動中…',
+      failed: (message: string) => `確認に失敗しました（${message}）`,
+    },
+
     personality: {
       title: '性格',
       address: 'Iris にどう呼ばれたいですか？',
