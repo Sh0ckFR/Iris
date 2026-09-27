@@ -141,9 +141,8 @@ export class LocalWakeListener {
         };
       });
       modelReady.catch(() => {}); // awaited below; never an unhandled rejection meanwhile
-      // Phones with little memory (or that don't say) take the lighter model even with WebGPU.
-      const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
-      this.send({ type: 'load', mobile: IS_MOBILE && !(memory !== undefined && memory >= 6) });
+      // Phones and tablets go straight to the lighter model on the CPU (see localAsr.worker.ts).
+      this.send({ type: 'load', mobile: IS_MOBILE });
 
       // Ours rather than vad-web's, so it can be resumed after the app was in the background.
       this.audioContext = new AudioContext();

@@ -19,16 +19,16 @@ import ortWasmUrl from '@whisper-ort/ort-wasm-simd-threaded.asyncify.wasm?url';
  *
  * The model is downloaded from Hugging Face on first use, then served from the browser cache.
  * WebGPU when available ("small": accurate and fast on a GPU), otherwise WebAssembly with the
- * lighter "base" model (small would be too slow on a CPU). Phones and tablets with less than
- * 6 GB of memory (or that don't tell) take "base" even with WebGPU: small (≈ 390 MB) would strain
- * their webview; the others keep small, much better at names and accents.
+ * lighter "base" model (small would be too slow on a CPU). Phones and tablets always take "base"
+ * on WebAssembly: small (≈ 390 MB) took minutes to download and set up there, and a phone's
+ * WebGPU compiles its shaders slowly, or fails after its files were downloaded for nothing.
  *
  * The same worker computes voiceprints (speaker embeddings, see lib/voiceprint.ts) when asked:
  * a separate, smaller model, loaded only if voice recognition is used.
  */
 
 export type AsrRequest =
-  /** `mobile`: a device that should take the lighter model (see above). */
+  /** `mobile`: a phone or tablet, which goes straight to the lighter model (see above). */
   | { type: 'load'; mobile?: boolean }
   | { type: 'transcribe'; id: number; audio: Float32Array; language: string | null }
   | { type: 'embed'; id: number; audio: Float32Array };
@@ -138,13 +138,12 @@ function load(mobile = false): Promise<Asr> {
       return { model: model as WhisperForConditionalGeneration, processor, tokenizer };
     };
 
-    const adapter = await gpuAdapter();
+    const adapter = mobile ? null : await gpuAdapter();
     if (adapter) {
       try {
         const encoder = adapter.features.has('shader-f16') ? 'fp16' : 'fp32';
-        const name = mobile ? 'whisper-base' : 'whisper-small';
-        const loaded = await open(name, { device: 'webgpu', dtype: { encoder_model: encoder, decoder_model_merged: 'q4' } });
-        post({ type: 'ready', device: 'webgpu', model: `${name} (encoder ${encoder})` });
+        const loaded = await open('whisper-small', { device: 'webgpu', dtype: { encoder_model: encoder, decoder_model_merged: 'q4' } });
+        post({ type: 'ready', device: 'webgpu', model: `whisper-small (encoder ${encoder})` });
         return loaded;
       } catch (error) {
         console.warn('[iris:wake] WebGPU unavailable for Whisper, falling back to WebAssembly', error);
