@@ -45,39 +45,39 @@ One codebase, the same features everywhere the OS allows them.
 - **Only her name triggers her**, at the start or end of a sentence (*"Iris, open the calculator"*, *"…, Iris, please"*; usual misspellings accepted). The one exception: the answer to a question she just asked, within 8 s.
 - **Talking over her pauses her** mid-syllable; with "Iris" in your sentence she drops her reply, otherwise she resumes (at most 12 s later). *"Iris, stop"* or **Esc** silence her.
 - **Voice recognition** (optional): three sentences give a 256-number voiceprint (never audio). Iris can then answer only known voices, and keeps only the stretches spoken by one when others talk around you. Manage voices in *Settings → Recognised voices*.
-- **Standby** (*"arrête d'écouter"*), **"Iris?"** → *"Oui, monsieur ?"* (0 tokens), and **instant acknowledgements** (*"Je regarde ça."*) pre-synthesized at launch.
+- **Standby** (*"stop listening"*), **"Iris?"** → *"Yes, sir?"* (0 tokens), and **instant acknowledgements** (*"Let me check."*) pre-synthesized at launch.
 - **Two modes**: *Economy* (default: local transcript → text model → speech, text tokens only) and *Premium* (OpenAI Realtime over WebRTC, opened only when addressed, closed after 30 s).
 - **Her voice follows the account**: OpenAI or Gemini natural voices, or the free offline **Piper** voice (default with Claude).
 - **Low latency, streamed end to end** (economy voice): at the first short pause Whisper already transcribes the sentence (*speculative transcription*): when you have finished, the text is ready, and a sentence that clearly ends (*"…?"*) doesn't wait for the full silence. *"Iris, …"* is recognised before the end of the sentence (she stops talking at once). The reply is spoken from its **first clause**, and OpenAI's voice **plays while it is synthesized** (streamed PCM). The telemetry shows the latency: end of your sentence → first sound.
 
 ### 🪟 Background mode (desktop)
-Closing the window keeps Iris in the tray / menu bar, listening. A **mini window** (eye, status, last reply) stays on top; **Ctrl+Shift+J** or the tray toggles the interface. By voice: *"montre-toi"*, *"cache-toi"*, *"mets-toi en haut à gauche"*, *"cache la mini fenêtre"*. **Start at login** is opt-in (Settings → Personality).
+Closing the window keeps Iris in the tray / menu bar, listening. A **mini window** (eye, status, last reply) stays on top; **Ctrl+Shift+J** or the tray toggles the interface. By voice: *"show yourself"*, *"hide"*, *"move to the top left"*, *"hide the mini window"*. **Start at login** is opt-in (Settings → Personality).
 
 ### 🖱️ Windows, mouse and keyboard (desktop)
 - `manage_window`: focus, minimize, maximize, restore, close (politely) or move a window to a half, quarter, centre or the next screen — found by words of its title, no screenshot.
 - `use_computer`: a vision sub-agent works one action at a time (click, type, shortcut, scroll, drag, wait), up to 20 steps, from a screenshot plus — on Windows — the window's accessible elements. It stops on **Esc or any mouse movement**, hands irreversible actions back to you and never types passwords.
-- `look_at_screen`: *"qu'est-ce que je regarde ?"* — only the vision model's description enters the conversation.
+- `look_at_screen`: *"what am I looking at?"* — only the vision model's description enters the conversation.
 
 ### 🧠 Memory
-Facts (*"retiens que…"* / *"oublie…"*), learned facts from summaries (optional), archived past conversations searched with `recall_memory`, and a **knowledge graph** of people, places, projects and their relations, filled by the same summary call (no extra request). Sessions start fresh by default (the previous one is archived); *Resume the last conversation* restores it.
-- **Search by meaning** (`semantic.ts`): a small multilingual model on the device (E5 small, ~120 MB once) embeds every memory; *"le mariage de ma sœur"* finds *"Julie se marie le 12 juin"*, in any language. `recall_memory` uses it first (then keywords), and before each request the few memories closest to it join the message — so facts older than the 40 always in the instructions are not forgotten. Nothing leaves the device.
+Facts (*"remember that…"* / *"forget…"*), learned facts from summaries (optional), archived past conversations searched with `recall_memory`, and a **knowledge graph** of people, places, projects and their relations, filled by the same summary call (no extra request). Sessions start fresh by default (the previous one is archived); *Resume the last conversation* restores it.
+- **Search by meaning** (`semantic.ts`): a small multilingual model on the device (E5 small, ~120 MB once) embeds every memory; *"my sister's wedding"* finds *"Julie is getting married on June 12"*, whatever the words or the language. `recall_memory` uses it first (then keywords), and before each request the few memories closest to it join the message — so facts older than the 40 always in the instructions are not forgotten. Nothing leaves the device.
 - **The same Iris everywhere** (`sync.ts`): facts, past conversations' summaries, the knowledge graph and deletions sync between your computer and your phone through storage you own — a **WebDAV** folder (Nextcloud, kDrive, Koofr…) or a **secret GitHub Gist** — **end-to-end encrypted** (AES-256-GCM, key derived from your passphrase with PBKDF2; the storage only sees ciphertext). Each device merges: nothing is lost when both changed; a deletion or a *"forget everything"* reaches every device. *Settings → Sync between devices*.
 
 ### 💡 Initiative
 Iris speaks up by herself when something deserves it (`proactive.ts`), like a real assistant:
-- *"Monsieur, « Point produit » commence dans 10 minutes (salle 2)."* — from your **calendars** (private `.ics` addresses: Google, iCloud, Outlook, Nextcloud…);
-- *"Claire vous a écrit au sujet du devis ; voulez-vous que je vous le lise ?"* — an **e-mail** from someone who matters (a person of the knowledge graph) or marked urgent, with what Iris remembers about them; the others are grouped (*"vous avez 6 nouveaux e-mails, voulez-vous un résumé ?"*). Read only, over IMAP: nothing is ever marked as read or sent;
-- *"Il risque de pleuvoir à Lyon vers 17 h."* — **rain** coming in your city;
-- *"Bonjour Monsieur. Voulez-vous le point du matin ?"* — the **morning briefing** (agenda, e-mails, weather) the first time you are there;
+- *"Sir, "Product review" starts in 10 minutes (room 2)."* — from your **calendars** (private `.ics` addresses: Google, iCloud, Outlook, Nextcloud…);
+- *"Claire wrote to you about the quote; shall I read it to you?"* — an **e-mail** from someone who matters (a person of the knowledge graph) or marked urgent, with what Iris remembers about them; the others are grouped (*"you have 6 new e-mails, would you like a summary?"*). Read only, over IMAP: nothing is ever marked as read or sent;
+- *"Rain is likely in Lyon around 5 pm."* — **rain** coming in your city;
+- *"Good morning, sir. Would you like your morning briefing?"* — the **morning briefing** (agenda, e-mails, weather) the first time you are there;
 - once a day, **what your memory says about today** (a birthday, a deadline, a trip).
-Cheap by design: the watching is local and free, most lines are ready-made; the model only writes the ones that need judgement (an important e-mail, the day's memories: one small call a day). Never during the **quiet hours** (22 h – 7 h by default), only when someone is at the computer (keyboard / mouse activity, or speech), never while Iris is busy or you are talking to her, at most every 8 minutes (meeting reminders excepted), 12 times a day. Answering *"oui"* just continues the conversation: the calendar and e-mail tools (`check_calendar`, `check_email`, `read_email`) are ready. *Settings → Initiative*.
+Cheap by design: the watching is local and free, most lines are ready-made; the model only writes the ones that need judgement (an important e-mail, the day's memories: one small call a day). Never during the **quiet hours** (10 pm – 7 am by default), only when someone is at the computer (keyboard / mouse activity, or speech), never while Iris is busy or you are talking to her, at most every 8 minutes (meeting reminders excepted), 12 times a day. Answering *"yes"* just continues the conversation: the calendar and e-mail tools (`check_calendar`, `check_email`, `read_email`) are ready. *Settings → Initiative*.
 
 ### 🔌 Connected services (MCP)
 Standard `mcpServers` JSON in *Settings → Connected services*, stored encrypted. Each server tool becomes `mcp_<server>_<tool>`; non-read-only tools ask for approval outside autonomous mode. Command servers are started by Rust; URL servers go through `mcp-remote` (Node.js).
 
 ### 🔔 Alerts, ⏰ reminders and ⚡ local answers
 - `set_alert` watches quotes (Yahoo, every minute) or the weather (Open-Meteo, every 10 min) **locally, with no tokens**, fires once, survives restarts.
-- `schedule_task`: reminders, requests or dashboards at a time or on given days, persistent, with *"Puis-je vous interrompre ?"* when you're busy; missed one-off reminders are said at the next launch. Timers survive restarts too.
+- `schedule_task`: reminders, requests or dashboards at a time or on given days, persistent, with *"May I interrupt?"* when you're busy; missed one-off reminders are said at the next launch. Timers survive restarts too.
 - **0-token answers**: time, date, timers, volume, opening apps, showing/moving windows, dashboards, stop, standby — in French and English.
 
 ### 🌐 Live information
@@ -250,9 +250,9 @@ First launch opens a **guided setup**: interface language, **AI account** (OpenA
 |---|---|
 | **"Iris, …"** / **"…, Iris"** | Talk to her (the microphone is always on) |
 | **"Iris?"** / **"Iris, stop"** / **Esc** | Attention / cut her off |
-| **"Iris, arrête d'écouter"** | Standby: only her name wakes her |
+| **"Iris, stop listening"** | Standby: only her name wakes her |
 | **Ctrl+Shift+J**, tray icon, Dock icon | Show / hide the interface (desktop) |
-| **Enter / Esc** on an approval card | Allow / decline (or say *oui* / *non*) |
+| **Enter / Esc** on an approval card | Allow / decline (or say *yes* / *no*) |
 | 📎 or drag & drop | Attach PDF, image, Word or text files |
 | Double-click a panel header | Reset its layout (full layout) |
 | Tabs under the top bar | Switch panels (compact layout) |
@@ -339,12 +339,12 @@ First launch opens a **guided setup**: interface language, **AI account** (OpenA
 
 | # | Improvement | Effort |
 |---|---|---|
-| 1 | Reminders without AI (*"rappelle-moi à 17 h…"* recognised locally) | 🟢 |
+| 1 | Reminders without AI (*"remind me at 5 pm…"* recognised locally) | 🟢 |
 | 2 | System alerts (battery, disk, CPU) said aloud | 🟢 |
 | 3 | Scheduled tasks listed and editable in Settings | 🟢 |
 | 4 | Mini window remembers its position and state | 🟢 |
 | 5 | Voice pipeline tests from recorded audio | 🟡 |
 | 6 | Home Assistant, ready to use (lights, heating, cameras, presence) | 🟡 |
-| 7 | Camera vision ("Iris, regarde ça", who is in the room, a document held to the webcam) | 🟡 |
+| 7 | Camera vision ("Iris, look at this", who is in the room, a document held to the webcam) | 🟡 |
 
 **Later**: accessibility elements on macOS (AX) and Linux (AT-SPI) · native Wayland window control through the portals · local model for small talk and a full offline mode · MCP catalogue with guided OAuth · long-running agent tasks · Pyodide code interpreter · calendar & email, smart home, clipboard, more document formats · live interpreter mode · wake word and local commands in more languages · settings and skills in files with export.
