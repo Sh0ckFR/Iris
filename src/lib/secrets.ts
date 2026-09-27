@@ -6,11 +6,16 @@ import { Client, Stronghold } from '@tauri-apps/plugin-stronghold';
  * API keys live in a Stronghold vault (encrypted at rest). Its master password is generated
  * by Rust and kept in the OS credential store — see src-tauri/src/vault.rs.
  */
-/** `mcp`: the MCP servers configuration (JSON), kept here because it often holds tokens. */
-export type SecretKey = 'openai' | 'anthropic' | 'google' | 'tavily' | 'mcp';
+/**
+ * `mcp`: the MCP servers configuration (JSON), kept here because it often holds tokens.
+ * `calendar`: the private .ics addresses of the user's calendars, one per line (lib/calendar.ts).
+ * `mail`: the IMAP account, JSON (lib/mail.ts). `sync`: where and how the memory syncs, JSON,
+ * passphrase included (lib/sync.ts).
+ */
+export type SecretKey = 'openai' | 'anthropic' | 'google' | 'tavily' | 'mcp' | 'calendar' | 'mail' | 'sync';
 export type Secrets = Partial<Record<SecretKey, string>>;
 
-export const SECRET_KEYS: SecretKey[] = ['openai', 'anthropic', 'google', 'tavily', 'mcp'];
+export const SECRET_KEYS: SecretKey[] = ['openai', 'anthropic', 'google', 'tavily', 'mcp', 'calendar', 'mail', 'sync'];
 
 const CLIENT_NAME = 'iris';
 

@@ -10,9 +10,9 @@ import { z } from 'zod';
  *  3. load_tools lets the model add a group itself when the guess missed one (one extra step).
  */
 
-export type ToolGroup = 'files' | 'computer' | 'create' | 'widgets' | 'hud' | 'schedule' | 'skills' | 'services';
+export type ToolGroup = 'files' | 'computer' | 'create' | 'widgets' | 'hud' | 'schedule' | 'personal' | 'skills' | 'services';
 
-const GROUPS: ToolGroup[] = ['files', 'computer', 'create', 'widgets', 'hud', 'schedule', 'skills', 'services'];
+const GROUPS: ToolGroup[] = ['files', 'computer', 'create', 'widgets', 'hud', 'schedule', 'personal', 'skills', 'services'];
 
 /** What each group is for, in load_tools' description. */
 const GROUP_INFO: Record<ToolGroup, string> = {
@@ -22,6 +22,7 @@ const GROUP_INFO: Record<ToolGroup, string> = {
   widgets: 'showing data in widgets: map / globe, chart, table, key figures, timeline, cards, live quotes and weather',
   hud: 'moving, resizing, showing or hiding the HUD panels and the Iris windows',
   schedule: 'reminders at a given time and tasks run later or regularly (every morning, each Monday…), and cancelling them',
+  personal: "the user's own calendar and e-mail inbox (read only)",
   skills: 'self-written skills: create one for something no tool can do, or run an installed one',
   services: 'the connected external services (MCP: mail, calendar, home, GitHub…)',
 };
@@ -33,6 +34,7 @@ export function groupOf(name: string): ToolGroup | 'core' {
   if (/^(show_data|pin_widget|show_dashboard)$/.test(name)) return 'widgets';
   if (/^(arrange_panels|control_window)$/.test(name)) return 'hud';
   if (/^(schedule_task|cancel_schedule)$/.test(name)) return 'schedule';
+  if (/^(check_calendar|check_email|read_email)$/.test(name)) return 'personal';
   if (/^(create_skill|run_skill|skill_)/.test(name)) return 'skills';
   if (name.startsWith('mcp_')) return 'services';
   // Live information, opening apps and sites, volume, timers, memory, documents, stop listening.
@@ -54,6 +56,8 @@ const INTENTS: Record<Exclude<ToolGroup, 'services' | 'skills'>, RegExp> = {
     /\b(carte|globe|map|zoom\w*|dezoom\w*|rapproche|recentre|centre sur|de plus pres|plus pres|distances?|kilometres?|km|combien de km|place (les|sur)|localise|ou (se trouve|sont)|graphique|graphe|courbe|chart|graph|camembert|histogramme|barres|tableau|table|compare|comparatif|comparaison|evolution|tendance|statistiques?|stats|chiffres?|top \d+|les \d+ (plus|premiers)|classement|ranking|frise|chronologie|timeline|liste des|affiche|montre[ -]moi|visualise|trajet|itineraire|voyage|vols?|flights?|route|par pays|pays|dashboard|tableau de bord|epingle\w*|detache|garde (ce|cet|cette|le|la|les)|ecran du \w+|mon ecran|en direct|live|temps reel|suis (le|la|les)|pib|gdp|population|resultats|scores?|marches|indices|cryptos?)\b/,
   schedule:
     /\b(rappelle[ -]moi|rappels?|remind\w*|programme\w*|planifie\w*|schedule\w*|chaque (jour|matin|soir|semaine|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)|tous les (jours|matins|soirs|lundis|mardis|mercredis|jeudis|vendredis|samedis|dimanches)|every (day|morning|evening|week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|en semaine|le week[ -]end|a \d{1,2} ?h|at \d{1,2}(:\d\d)? ?(am|pm)?|demain (a|matin|soir)|tomorrow)\b/,
+  personal:
+    /\b(mails?|e-mails?|emails?|courriels?|messages? (non lus|recus)|boite (de reception|mail)|inbox|agenda|calendrier|calendar|planning|rendez[ -]vous|rdv|reunions?|meetings?|evenements?|ma journee|my day|point du matin|briefing|programme (du jour|de la journee|de demain)|(suis|serai)[ -]je (libre|dispo)|am i free|qui m a ecrit|who wrote)\b/,
   hud: /\b(panneaux?|panels?|interface|hud|mini fenetre|cache[ -]toi|montre[ -]toi|affiche[ -]toi|mets[ -]toi|deplace[ -]toi|ta fenetre|(deplace|agrandis|reduis|cache|affiche|ferme|mets) (la|le|les) (conversation|graphe|briefing|visuel|panneau|panneaux)|reorganise|dispose|layout)\b/,
 };
 

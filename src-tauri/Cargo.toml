@@ -32,7 +32,7 @@ tauri-plugin-http = "~2.6"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # OS control: shell commands with a timeout; MCP servers (child processes over stdio).
-tokio = { version = "1", features = ["time", "process", "io-util", "sync"] }
+tokio = { version = "1", features = ["time", "process", "io-util", "sync", "net"] }
 log = "0.4"
 # Vault master password: random secret + fast hash (see vault.rs).
 sha2 = "0.10"
@@ -46,6 +46,10 @@ base64 = "0.22"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 # Checking the host of the addresses those calls reach (netguard.rs: public internet only).
 url = "2"
+# E-mail (mail.rs): a small read-only IMAP client over TLS, with the same TLS stack as reqwest.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+webpki-roots = "1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 # OS credential store for the vault password.
@@ -76,6 +80,9 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
     "Win32_Graphics_Gdi",
     "Win32_Graphics_Dwm",
+    # Time since the last keyboard / mouse input (user_idle_seconds).
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_SystemInformation",
 ] }
 
 [target.'cfg(target_os = "linux")'.dependencies]

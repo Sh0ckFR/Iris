@@ -48,6 +48,7 @@ One codebase, the same features everywhere the OS allows them.
 - **Standby** (*"arrête d'écouter"*), **"Iris?"** → *"Oui, monsieur ?"* (0 tokens), and **instant acknowledgements** (*"Je regarde ça."*) pre-synthesized at launch.
 - **Two modes**: *Economy* (default: local transcript → text model → speech, text tokens only) and *Premium* (OpenAI Realtime over WebRTC, opened only when addressed, closed after 30 s).
 - **Her voice follows the account**: OpenAI or Gemini natural voices, or the free offline **Piper** voice (default with Claude).
+- **Low latency, streamed end to end** (economy voice): at the first short pause Whisper already transcribes the sentence (*speculative transcription*): when you have finished, the text is ready, and a sentence that clearly ends (*"…?"*) doesn't wait for the full silence. *"Iris, …"* is recognised before the end of the sentence (she stops talking at once). The reply is spoken from its **first clause**, and OpenAI's voice **plays while it is synthesized** (streamed PCM). The telemetry shows the latency: end of your sentence → first sound.
 
 ### 🪟 Background mode (desktop)
 Closing the window keeps Iris in the tray / menu bar, listening. A **mini window** (eye, status, last reply) stays on top; **Ctrl+Shift+J** or the tray toggles the interface. By voice: *"montre-toi"*, *"cache-toi"*, *"mets-toi en haut à gauche"*, *"cache la mini fenêtre"*. **Start at login** is opt-in (Settings → Personality).
@@ -59,6 +60,17 @@ Closing the window keeps Iris in the tray / menu bar, listening. A **mini window
 
 ### 🧠 Memory
 Facts (*"retiens que…"* / *"oublie…"*), learned facts from summaries (optional), archived past conversations searched with `recall_memory`, and a **knowledge graph** of people, places, projects and their relations, filled by the same summary call (no extra request). Sessions start fresh by default (the previous one is archived); *Resume the last conversation* restores it.
+- **Search by meaning** (`semantic.ts`): a small multilingual model on the device (E5 small, ~120 MB once) embeds every memory; *"le mariage de ma sœur"* finds *"Julie se marie le 12 juin"*, in any language. `recall_memory` uses it first (then keywords), and before each request the few memories closest to it join the message — so facts older than the 40 always in the instructions are not forgotten. Nothing leaves the device.
+- **The same Iris everywhere** (`sync.ts`): facts, past conversations' summaries, the knowledge graph and deletions sync between your computer and your phone through storage you own — a **WebDAV** folder (Nextcloud, kDrive, Koofr…) or a **secret GitHub Gist** — **end-to-end encrypted** (AES-256-GCM, key derived from your passphrase with PBKDF2; the storage only sees ciphertext). Each device merges: nothing is lost when both changed; a deletion or a *"forget everything"* reaches every device. *Settings → Sync between devices*.
+
+### 💡 Initiative
+Iris speaks up by herself when something deserves it (`proactive.ts`), like a real assistant:
+- *"Monsieur, « Point produit » commence dans 10 minutes (salle 2)."* — from your **calendars** (private `.ics` addresses: Google, iCloud, Outlook, Nextcloud…);
+- *"Claire vous a écrit au sujet du devis ; voulez-vous que je vous le lise ?"* — an **e-mail** from someone who matters (a person of the knowledge graph) or marked urgent, with what Iris remembers about them; the others are grouped (*"vous avez 6 nouveaux e-mails, voulez-vous un résumé ?"*). Read only, over IMAP: nothing is ever marked as read or sent;
+- *"Il risque de pleuvoir à Lyon vers 17 h."* — **rain** coming in your city;
+- *"Bonjour Monsieur. Voulez-vous le point du matin ?"* — the **morning briefing** (agenda, e-mails, weather) the first time you are there;
+- once a day, **what your memory says about today** (a birthday, a deadline, a trip).
+Cheap by design: the watching is local and free, most lines are ready-made; the model only writes the ones that need judgement (an important e-mail, the day's memories: one small call a day). Never during the **quiet hours** (22 h – 7 h by default), only when someone is at the computer (keyboard / mouse activity, or speech), never while Iris is busy or you are talking to her, at most every 8 minutes (meeting reminders excepted), 12 times a day. Answering *"oui"* just continues the conversation: the calendar and e-mail tools (`check_calendar`, `check_email`, `read_email`) are ready. *Settings → Initiative*.
 
 ### 🔌 Connected services (MCP)
 Standard `mcpServers` JSON in *Settings → Connected services*, stored encrypted. Each server tool becomes `mcp_<server>_<tool>`; non-read-only tools ask for approval outside autonomous mode. Command servers are started by Rust; URL servers go through `mcp-remote` (Node.js).
@@ -287,9 +299,10 @@ First launch opens a **guided setup**: interface language, **AI account** (OpenA
 
 | Data | Location |
 |---|---|
-| API keys, MCP config | `vault.hold` in the app data dir (e.g. `%APPDATA%\com.iris.assistant\`, `~/Library/Application Support/com.iris.assistant/`, `~/.local/share/com.iris.assistant/`) |
+| API keys, MCP config, calendar addresses, e-mail account, sync settings and passphrase | `vault.hold` in the app data dir (e.g. `%APPDATA%\com.iris.assistant\`, `~/Library/Application Support/com.iris.assistant/`, `~/.local/share/com.iris.assistant/`) |
 | Vault password | OS credential store (`com.iris.assistant` / `stronghold-vault`), or `stronghold-vault.key` in the app data dir |
-| Memory, graph, alerts, dashboards, schedule, timers, voiceprints | `<app data>/memory/*.json` |
+| Memory, graph, alerts, dashboards, schedule, timers, voiceprints, embeddings (search by meaning), deletions to sync | `<app data>/memory/*.json` |
+| Synced memory (when enabled) | Your WebDAV file or secret Gist — encrypted, unreadable without your passphrase |
 | Settings, skills, layout, costs, geocoding cache | Webview `localStorage` |
 | Whisper model, Piper voices | Webview cache / private file system |
 | Images / saved visuals | `Pictures/Iris/` / `Documents/Iris/` |
@@ -309,6 +322,9 @@ First launch opens a **guided setup**: interface language, **AI account** (OpenA
 - Phones and tablets can't control other apps, the screen or the volume, run MCP servers or keep a tray. Android keeps listening in the background with a notification; iOS stops the microphone while Iris is not on screen.
 - In the Flatpak, the programs Iris starts (apps, commands, skills, MCP servers) run outside the sandbox through `flatpak-spawn --host`, which the package is granted: it is no stricter than the other builds.
 - Web pages and HTTP skills can't reach the local network (a home server, a router): use an MCP server for those.
+- E-mail needs an IMAP account that accepts a password (Gmail and iCloud with an app password, most other providers); Outlook.com and Microsoft 365 require OAuth and are not supported yet. Calendars are read from their private `.ics` address (refreshed every 15 minutes).
+- Initiative knows you are there from the keyboard and mouse on Windows and macOS; on Linux and phones, from your activity with Iris (speaking, typing, the app on screen).
+- Search by meaning downloads its model (~120 MB) once; until it has indexed the memory, recall is by keywords. A lost sync passphrase makes the synced copy unreadable (each device keeps its own memory).
 - Volume moves in steps; tool selection is a keyword guess (a miss costs one `load_tools` step); memory search is by keywords; at most 6 tool steps per request.
 - Map outlines are Natural Earth 1:110m; first-time geocoding of unusual places needs internet (Nominatim: 1 request/s).
 - Free web search scrapes public result pages: a layout change needs a parser update (`cargo test free_search_engines -- --ignored`).
@@ -317,7 +333,7 @@ First launch opens a **guided setup**: interface language, **AI account** (OpenA
 
 ## Roadmap
 
-**Done**: local wake word and economy voice · token economy (caching, tool selection, routing, summaries) · background mode · screen awareness · memory and knowledge graph · MCP · scheduler, alerts, dashboards, persistent timers · approvals after outside content · widgets, maps, routes, heat maps, tours · cost meter · 14 languages · voice recognition · guided setup · computer use · **Windows, macOS, Linux, Android and iOS, with a responsive compact layout** · ARM64 and universal macOS builds, Flatpak · signed in-app updates · strict CSP and SSRF guard · Android background listening · Wayland global shortcut (portal).
+**Done**: local wake word and economy voice · token economy (caching, tool selection, routing, summaries) · background mode · screen awareness · memory and knowledge graph · MCP · scheduler, alerts, dashboards, persistent timers · approvals after outside content · widgets, maps, routes, heat maps, tours · cost meter · 14 languages · voice recognition · guided setup · computer use · **Windows, macOS, Linux, Android and iOS, with a responsive compact layout** · ARM64 and universal macOS builds, Flatpak · signed in-app updates · strict CSP and SSRF guard · Android background listening · Wayland global shortcut (portal) · **initiative** (calendar, e-mail, rain, morning briefing, the day's memories) · **search by meaning** and **encrypted memory sync** between devices · **low-latency voice** (speculative transcription, streamed speech).
 
 **Next up**
 
@@ -327,7 +343,8 @@ First launch opens a **guided setup**: interface language, **AI account** (OpenA
 | 2 | System alerts (battery, disk, CPU) said aloud | 🟢 |
 | 3 | Scheduled tasks listed and editable in Settings | 🟢 |
 | 4 | Mini window remembers its position and state | 🟢 |
-| 5 | Semantic memory (local embeddings) | 🟡 |
-| 6 | Voice pipeline tests from recorded audio | 🟡 |
+| 5 | Voice pipeline tests from recorded audio | 🟡 |
+| 6 | Home Assistant, ready to use (lights, heating, cameras, presence) | 🟡 |
+| 7 | Camera vision ("Iris, regarde ça", who is in the room, a document held to the webcam) | 🟡 |
 
 **Later**: accessibility elements on macOS (AX) and Linux (AT-SPI) · native Wayland window control through the portals · local model for small talk and a full offline mode · MCP catalogue with guided OAuth · long-running agent tasks · Pyodide code interpreter · calendar & email, smart home, clipboard, more document formats · live interpreter mode · wake word and local commands in more languages · settings and skills in files with export.

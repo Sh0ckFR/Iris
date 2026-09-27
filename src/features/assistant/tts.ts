@@ -93,9 +93,70 @@ interface SpeakerCallbacks {
   onSentence?: (text: string, channel: string) => void;
 }
 
+/**
+ * Speech that arrives as it is synthesized (OpenAI streams raw 24 kHz PCM): playback starts with
+ * the first chunk instead of waiting for the whole sentence — a second or more saved each time.
+ */
+export class PcmStream {
+  readonly sampleRate = 24_000;
+  chunks: Float32Array[] = [];
+  done = false;
+  error: Error | null = null;
+  private wake: (() => void) | null = null;
+
+  push(samples: Float32Array) {
+    if (samples.length) this.chunks.push(samples);
+    this.notify();
+  }
+
+  end(error?: unknown) {
+    this.done = true;
+    if (error) this.error = error instanceof Error ? error : new Error(String(error));
+    this.notify();
+  }
+
+  /** Resolves when there is audio to take, or nothing more will come. */
+  ready(): Promise<void> {
+    if (this.chunks.length || this.done) return Promise.resolve();
+    return new Promise((resolve) => (this.wake = resolve));
+  }
+
+  /** Everything received so far, as one block. */
+  take(): Float32Array<ArrayBuffer> | null {
+    if (!this.chunks.length) return null;
+    const total = this.chunks.reduce((n, c) => n + c.length, 0);
+    const out = new Float32Array(total);
+    let at = 0;
+    for (const c of this.chunks) {
+      out.set(c, at);
+      at += c.length;
+    }
+    this.chunks = [];
+    return out;
+  }
+
+  private notify() {
+    const wake = this.wake;
+    this.wake = null;
+    wake?.();
+  }
+}
+
+/** 16-bit little-endian PCM → samples; an odd trailing byte is carried to the next chunk. */
+export function pcm16ToFloat(bytes: Uint8Array, carry: number | null): { samples: Float32Array; carry: number | null } {
+  const all = carry === null ? bytes : Uint8Array.of(carry, ...bytes);
+  const count = Math.floor(all.length / 2);
+  const samples = new Float32Array(count);
+  const view = new DataView(all.buffer, all.byteOffset, count * 2);
+  for (let i = 0; i < count; i++) samples[i] = view.getInt16(i * 2, true) / 32768;
+  return { samples, carry: all.length % 2 ? all[all.length - 1] : null };
+}
+
+type Playable = AudioBuffer | PcmStream;
+
 interface Channel {
   /** Requested as soon as a sentence is queued, so it's ready when its turn comes. */
-  items: { audio: Promise<AudioBuffer>; text: string }[];
+  items: { audio: Promise<Playable>; text: string }[];
   /** No more sentences will be added. */
   ended: boolean;
   waiters: Array<() => void>;
@@ -186,7 +247,7 @@ export class Speaker {
   enqueue(raw: string, channel = 'main') {
     const text = cleanForSpeech(raw);
     if (!text || !this.available || this.muted.has(channel)) return;
-    const audio = this.synthesize(text);
+    const audio = this.synthesize(text, true);
     audio.catch(() => {}); // reported when played
     this.channel(channel).items.push({ audio, text });
     void this.pump();
@@ -215,7 +276,8 @@ export class Speaker {
     const key = `${this.config.engine}|${this.config.voice}|${text}`;
     let audio = this.phraseCache.get(key);
     if (!audio) {
-      audio = this.synthesize(text);
+      // Kept whole (not streamed): it is played again and again.
+      audio = this.synthesize(text, false) as Promise<AudioBuffer>;
       audio.catch(() => this.phraseCache.delete(key)); // not remembered when it failed
       this.phraseCache.set(key, audio);
     }
@@ -311,7 +373,25 @@ export class Speaker {
       // already stopped
     }
     this.source = null;
+    // A streamed sentence: its scheduled pieces, and the loop feeding them.
+    this.playToken++;
+    this.streamSources.forEach((s) => {
+      try {
+        s.stop();
+      } catch {
+        // already stopped
+      }
+    });
+    this.streamSources.clear();
+    this.stopWaiters.forEach((wake) => wake());
+    this.stopWaiters.clear();
   }
+
+  /** Changes when playback is stopped: a streamed sentence still arriving stops being fed. */
+  private playToken = 0;
+  private streamSources = new Set<AudioBufferSourceNode>();
+  /** A streamed sentence waiting for its next block (a stalled network must not block "stop"). */
+  private stopWaiters = new Set<() => void>();
 
   private setBusy(value: boolean) {
     if (this.busy === value) return;
@@ -373,7 +453,8 @@ export class Speaker {
     return { ctx: this.ctx, analyser: this.analyser! };
   }
 
-  private async synthesize(text: string): Promise<AudioBuffer> {
+  /** `stream`: OpenAI's voice may be played while it arrives (a PcmStream). */
+  private async synthesize(text: string, stream: boolean): Promise<Playable> {
     if (this.config.engine === 'local') {
       // Each sentence in its own language: replies may mix French and English names.
       const lang = detectLanguage(text) ?? speechLang(this.config.language);
@@ -384,13 +465,36 @@ export class Speaker {
     const response = await tauriFetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.config.apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: TTS_MODEL, voice: this.config.voice, input: text, instructions: DELIVERY, response_format: 'mp3' }),
+      body: JSON.stringify({ model: TTS_MODEL, voice: this.config.voice, input: text, instructions: DELIVERY, response_format: stream ? 'pcm' : 'mp3' }),
     });
     if (!response.ok) {
       const detail = (await response.text().catch(() => '')).slice(0, 160);
       throw new Error(`OpenAI voice failed (${response.status}). ${detail}`);
     }
-    return this.audioGraph().ctx.decodeAudioData(await response.arrayBuffer());
+    if (!stream) return this.audioGraph().ctx.decodeAudioData(await response.arrayBuffer());
+    const pcm = new PcmStream();
+    const reader = response.body?.getReader();
+    if (!reader) {
+      pcm.push(pcm16ToFloat(new Uint8Array(await response.arrayBuffer()), null).samples);
+      pcm.end();
+      return pcm;
+    }
+    void (async () => {
+      let carry: number | null = null;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const converted = pcm16ToFloat(value, carry);
+          carry = converted.carry;
+          pcm.push(converted.samples);
+        }
+        pcm.end();
+      } catch (error) {
+        pcm.end(error);
+      }
+    })();
+    return pcm;
   }
 
   private async synthesizeWithGemini(text: string): Promise<AudioBuffer> {
@@ -420,7 +524,7 @@ export class Speaker {
     return pcmToBuffer(this.audioGraph().ctx, audio.data, audio.mimeType ?? '');
   }
 
-  private async play(buffer: AudioBuffer): Promise<void> {
+  private async play(audio: Playable): Promise<void> {
     const { ctx, analyser } = this.audioGraph();
     // A context the webview keeps suspended (audio blocked until a click) would never end the
     // sentence: say so and move on, instead of waiting forever with every reply queued behind.
@@ -429,6 +533,8 @@ export class Speaker {
       // (Re-read after the wait: resume() changes it.)
       if ((ctx.state as AudioContextState) !== 'running' && !this.held) throw new Error('Audio output is blocked: the sound could not start.');
     }
+    if (audio instanceof PcmStream) return this.playStream(audio, ctx, analyser);
+    const buffer = audio;
     return new Promise((resolve) => {
       const src = ctx.createBufferSource();
       src.buffer = buffer;
@@ -440,6 +546,54 @@ export class Speaker {
       };
       this.setLevelSource(() => rms(analyser));
       src.start();
+    });
+  }
+
+  /**
+   * Plays speech while it arrives: each block received is scheduled right after the previous
+   * one (a small margin at the start and after a network pause, so it never crackles).
+   * Resolves when the last block has been heard, or at once when stopped.
+   */
+  private async playStream(stream: PcmStream, ctx: AudioContext, analyser: AnalyserNode): Promise<void> {
+    const token = this.playToken;
+    this.setLevelSource(() => rms(analyser));
+    let at = 0;
+    let last: AudioBufferSourceNode | null = null;
+    for (;;) {
+      await new Promise<void>((resolve) => {
+        this.stopWaiters.add(resolve);
+        void stream.ready().then(() => {
+          this.stopWaiters.delete(resolve);
+          resolve();
+        });
+      });
+      if (token !== this.playToken) return; // stopped
+      const samples = stream.take();
+      if (!samples) {
+        if (stream.done) break;
+        continue;
+      }
+      const buffer = ctx.createBuffer(1, samples.length, stream.sampleRate);
+      buffer.copyToChannel(samples, 0);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(analyser);
+      if (at < ctx.currentTime + 0.02) at = ctx.currentTime + 0.06;
+      src.start(at);
+      at += buffer.duration;
+      this.streamSources.add(src);
+      src.onended = () => this.streamSources.delete(src);
+      last = src;
+    }
+    if (!last) {
+      if (stream.error) throw stream.error;
+      return;
+    }
+    const final = last;
+    await new Promise<void>((resolve) => {
+      // Already over, stopped meanwhile, or still to come.
+      if (!this.streamSources.has(final)) return resolve();
+      final.addEventListener('ended', () => resolve(), { once: true });
     });
   }
 

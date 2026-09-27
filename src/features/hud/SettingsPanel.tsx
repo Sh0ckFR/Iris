@@ -14,6 +14,7 @@ import { parseMcpConfig, useMcpStatus } from '../assistant/mcp';
 import { defaultPrice, type Price } from '../../lib/costs';
 import { IS_DESKTOP, OS_NAME, PLATFORM } from '../../lib/platform';
 import { appVersion, checkForUpdate, installUpdate, useUpdatesSupported, useUpdateState } from '../../lib/updates';
+import { ProactivitySection, SemanticToggle, SyncSection } from './ConnectionsSettings';
 import { LANGUAGES, isUiLanguage, uiLocale, useT, type Messages } from '../../i18n';
 
 const IMAGE_MODELS = ['gpt-image-2.5-flare', 'gpt-image-2.5-sunburst'] as const;
@@ -460,6 +461,14 @@ export function SettingsPanel({ settings, secrets, vaultError, onSave, onConnect
   const [keys, setKeys] = useState<Partial<Record<SecretKey, string | null>>>({});
 
   const patch = (p: Partial<Settings>) => setDraft((d) => ({ ...d, ...p }));
+  /** A secret edited in this panel (`undefined`: back to unchanged). */
+  const setKey = (id: SecretKey, value: string | null | undefined) =>
+    setKeys((k) => {
+      const next = { ...k };
+      if (value === undefined) delete next[id];
+      else next[id] = value;
+      return next;
+    });
   /** A key typed in this panel (not yet saved) or the saved one. */
   const effectiveKey = (id: SecretKey) => (keys[id] === null ? undefined : keys[id] || secrets[id]);
 
@@ -622,6 +631,8 @@ export function SettingsPanel({ settings, secrets, vaultError, onSave, onConnect
 
           <UpdatesSection />
 
+          <ProactivitySection draft={draft} patch={patch} secrets={secrets} keys={keys} setKey={setKey} />
+
           <section>
             <h3>{t.memory.title}</h3>
             <label className="set-toggle">
@@ -632,8 +643,11 @@ export function SettingsPanel({ settings, secrets, vaultError, onSave, onConnect
               <input type="checkbox" checked={draft.resumeConversation} onChange={(e) => patch({ resumeConversation: e.target.checked })} />
               {t.memory.resume}
             </label>
+            <SemanticToggle draft={draft} patch={patch} />
             <MemoryManager />
           </section>
+
+          <SyncSection secrets={secrets} keys={keys} setKey={setKey} />
 
           <details className="set-advanced">
             <summary>

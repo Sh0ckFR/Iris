@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { terms } from '../features/assistant/web';
 import { knowledgeStore } from './knowledge';
+import { tombstoneStore } from './tombstones';
 
 /**
  * Long-term memory, kept on disk (app data folder, see src-tauri/src/memory.rs):
@@ -35,6 +36,12 @@ export interface StoredConversation {
   messages: { id: string; role: 'user' | 'assistant'; content: string; brain?: string }[];
   /** Summary of the messages up to `coveredId` (they are no longer sent to the model). */
   summary: { text: string; coveredId: string } | null;
+}
+
+/** What the sync exchanges of this store (the archive stays on each device). */
+export interface MemorySyncState {
+  facts: MemoryFact[];
+  journal: JournalEntry[];
 }
 
 /** Facts given to the model with every request (the rest is reachable with recall_memory). */
@@ -92,6 +99,7 @@ export const memoryStore = {
         read<JournalEntry[]>('journal', []),
         read<ArchivedMessage[]>('archive', []),
         knowledgeStore.load(),
+        tombstoneStore.load(),
       ]);
       changed();
     })();
@@ -99,6 +107,8 @@ export const memoryStore = {
   },
 
   facts: () => facts,
+  journal: () => journal,
+  archive: () => archive,
 
   /** Adds a fact unless an equivalent one is already known. Returns false if it was a duplicate. */
   addFact(text: string, source: MemoryFact['source']): boolean {
@@ -114,6 +124,7 @@ export const memoryStore = {
 
   removeFact(id: string) {
     facts = facts.filter((f) => f.id !== id);
+    tombstoneStore.add([id]);
     write('facts', facts);
     changed();
   },
@@ -125,6 +136,7 @@ export const memoryStore = {
     const removed = facts.filter((f) => normalize(f.text).includes(n) || (wanted.size > 0 && score(f.text, wanted) >= Math.min(2, wanted.size)));
     if (removed.length) {
       facts = facts.filter((f) => !removed.includes(f));
+      tombstoneStore.add(removed.map((f) => f.id));
       write('facts', facts);
       changed();
     }
@@ -136,10 +148,30 @@ export const memoryStore = {
     facts = [];
     journal = [];
     archive = [];
+    tombstoneStore.clearAll();
     knowledgeStore.clear();
     write('facts', facts);
     write('journal', journal);
     write('archive', archive);
+    changed();
+  },
+
+  // ------------------------------------------------------------ sync (lib/sync.ts)
+
+  syncState: (): MemorySyncState => ({ facts, journal }),
+
+  /**
+   * The merged memory from the sync replaces this device's. The archive stays local, except
+   * what a "forget everything" on another device covers.
+   */
+  applySync(next: MemorySyncState, clearedAt: number) {
+    facts = next.facts;
+    journal = next.journal;
+    const before = archive.length;
+    if (clearedAt) archive = archive.filter((m) => m.at >= clearedAt);
+    write('facts', facts);
+    write('journal', journal);
+    if (archive.length !== before) write('archive', archive);
     changed();
   },
 

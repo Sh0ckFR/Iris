@@ -31,6 +31,14 @@ import { createScheduleTools } from './scheduleTools';
 import { createPanelTools, type PanelHooks } from './panelTools';
 import { createSessionTools } from './sessionTools';
 import { createMemoryTools } from './memoryTools';
+import { createPersonalTools } from './personalTools';
+import { useProactivity, markActivity } from './useProactivity';
+import { parseCalendarUrls } from '../../lib/calendar';
+import { parseMailAccount } from '../../lib/mail';
+import { memoryStore } from '../../lib/memory';
+import { semanticMemory } from '../../lib/semantic';
+import { parseSyncConfig, syncService } from '../../lib/sync';
+import { recordVoiceLatency } from '../../lib/latency';
 import { createComputerTools } from './computerTools';
 import { createScreenTools, SCREEN_SYSTEM } from './screenTools';
 import { clipMcpResult, configureMcp, mcpTools } from './mcp';
@@ -213,11 +221,18 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
     return lang === 'en' ? (EN_HONORIFIC[h.toLowerCase()] ?? h) : h;
   };
 
+  /** Spoken requests waiting for their first sound: task id → when the user stopped talking. */
+  const heardAtRef = useRef(new Map<string, number>());
   const speaker = useMemo(
     () =>
       new Speaker({
         // Each sentence as it is heard: maps follow the places Iris names (tours).
-        onSentence: (text) => {
+        onSentence: (text, channel) => {
+          const heardAt = heardAtRef.current.get(channel);
+          if (heardAt) {
+            heardAtRef.current.delete(channel);
+            recordVoiceLatency(Date.now() - heardAt);
+          }
           announceSentence(text);
           // What she said lately: an interruption is told apart from her own voice's echo.
           spokenRef.current = [...spokenRef.current.filter((s) => Date.now() - s.at < 20_000), { text, at: Date.now() }];
@@ -332,8 +347,8 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
   }, [tasks]);
 
   /** Adds a finished assistant line to the conversation (local answers, timer alerts). */
-  const addLocalReply = useCallback((content: string) => {
-    setMessages((prev) => [...prev, { id: uid(), role: 'assistant', content, brain: 'Local · 0 token' }]);
+  const addLocalReply = useCallback((content: string, brain = 'Local · 0 token') => {
+    setMessages((prev) => [...prev, { id: uid(), role: 'assistant', content, brain }]);
   }, []);
 
   // ------------------------------------------------------------------ the other hooks
@@ -342,6 +357,12 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
   // Scheduled requests run through `send` (defined further down).
   const runRequestRef = useRef<(text: string) => void>(() => {});
   const lastRequestAtRef = useRef(0);
+  /** The user is in the middle of something with Iris (a request, her voice, an approval, just spoke). */
+  const isBusy = () =>
+    ttsBusyRef.current ||
+    approvals.pendingCount > 0 ||
+    Date.now() - lastRequestAtRef.current < 60_000 ||
+    live.current.tasks.some((t) => t.status === 'running' && !isBackgroundTask(t.id));
   const { startTimer, trackAlert, trackScheduled } = useBackgroundJobs({
     live,
     controllers,
@@ -354,11 +375,7 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
     honorific,
     setNotice,
     runRequest: runRequestRef,
-    isBusy: () =>
-      ttsBusyRef.current ||
-      approvals.pendingCount > 0 ||
-      Date.now() - lastRequestAtRef.current < 60_000 ||
-      live.current.tasks.some((t) => t.status === 'running' && !isBackgroundTask(t.id)),
+    isBusy,
     askToInterrupt: (taskId, label) => {
       const lang = replyLang();
       const fr = lang === 'fr';
@@ -405,6 +422,28 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
   // Timers, alerts and scheduled tasks wait in the background: they don't make the conversation busy.
   const busy = tasks.some((t) => t.status === 'running' && !isBackgroundTask(t.id));
   const memory = useConversationMemory({ live, messages, setMessages, generate, busy });
+
+  // Search by meaning (lib/semantic.ts): the local index follows its setting.
+  useEffect(() => semanticMemory.configure(settings.semanticMemory), [settings.semanticMemory]);
+  // The same memory on every device (lib/sync.ts), when a sync storage is configured.
+  useEffect(() => syncService.start(() => parseSyncConfig(live.current.secrets.sync)), []);
+  useEffect(() => {
+    if (secrets.sync) void syncService.run(parseSyncConfig(secrets.sync));
+  }, [secrets.sync]);
+
+  // Iris speaks up by herself when something deserves it (proactive.ts).
+  useProactivity({
+    live,
+    // (Not during a premium voice session either: its own voice would overlap.)
+    isBusy: () => isBusy() || !!sessionRef.current,
+    say,
+    addReply: addLocalReply,
+    generate: (system, content) => generate(system, content),
+    honorific,
+    replyLang: () => replyLang(),
+    // Her offer's answer ("oui") gets the tools it needs, like a follow-up.
+    offerGroups: (groups) => groups.forEach((g) => recentGroupsRef.current.set(g, GROUP_MEMORY)),
+  });
 
   // ------------------------------------------------------------------ tools
 
@@ -483,6 +522,8 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
         ...createAlertTools({ onAdded: trackAlert, onRemoved: (id) => finishTask(`alert-${id}`, 'cancelled') }, userLangRef.current ?? s.language),
         ...createScheduleTools({ onAdded: trackScheduled, onRemoved: (id) => finishTask(`sched-${id}`, 'cancelled') }, (userLangRef.current ?? s.language) === 'fr'),
         ...createMemoryTools(),
+        // The user's calendar and inbox, read only, when connected (Settings → Proactivity).
+        ...createPersonalTools({ calendars: parseCalendarUrls(k.calendar), mail: parseMailAccount(k.mail) }, hooks.onActivity),
         // Mouse and keyboard: each step is decided by the "builder" model (stronger at locating
         // things on a screenshot when one is set).
         ...createComputerTools({
@@ -784,14 +825,17 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
    * aloud, and the model is told names may be mis-heard).
    */
   const send = useCallback(
-    async (raw: string, attachments: Attachment[] = [], { voice = false }: { voice?: boolean } = {}) => {
+    async (raw: string, attachments: Attachment[] = [], { voice = false, heardAt }: { voice?: boolean; heardAt?: number } = {}) => {
       const fr = navigator.language.startsWith('fr');
       const text =
         raw.trim() ||
         (attachments.length ? (fr ? 'Analyse ce document et résume-le.' : 'Analyse this document and summarise it.') : '');
       if (!text) return;
       const source: Task['source'] = voice ? 'voice' : 'text';
-      if (!text.startsWith('🗓')) lastRequestAtRef.current = Date.now();
+      if (!text.startsWith('🗓')) {
+        lastRequestAtRef.current = Date.now();
+        markActivity();
+      }
 
       // Everyday requests (time, timer, volume, open an app…) never reach the AI.
       if (attachments.length === 0) {
@@ -859,8 +903,12 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
       const isCurrent = () => !controller.signal.aborted;
       // A spoken request is always answered aloud.
       const speak = (voice || s.speakReplies);
+      // Its latency is measured until the first sound (telemetry).
+      if (voice && heardAt) heardAtRef.current.set(taskId, heardAt);
       configureSpeaker();
       let pending = '';
+      /** Some of the reply itself (not an acknowledgement) is queued for speech. */
+      let replyStarted = false;
 
       const tools: ToolSet = {
         ...buildTools(
@@ -894,9 +942,15 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
       const calledGroups = new Set<ToolGroup>();
 
       try {
-        const osContext = await loadOsContext()
-          .then(describeOsContext)
-          .catch(() => undefined);
+        // Memories close in meaning to the request, beyond the recent facts already in the
+        // instructions (lib/semantic.ts) — looked up while the OS context loads.
+        const [osContext, recalled] = await Promise.all([
+          loadOsContext()
+            .then(describeOsContext)
+            .catch(() => undefined),
+          semanticMemory.relevantFor(text, new Set(memoryStore.facts().slice(-40).map((f) => f.text))),
+        ]);
+        if (recalled) console.warn(`[iris:semantic] recalled for this request:\n${recalled}`);
         // Only the tool groups this request needs are sent (see toolGroups.ts).
         const selection = selectTools(tools, text, recentGroupsRef.current.keys(), (names) => toolGuidance(names, s.autonomous, osContext));
         console.warn(`[iris:tools] ${selection.active().length}/${Object.keys(tools).length} tools · groups: ${[...selection.groups].join(', ') || 'core'}`);
@@ -917,9 +971,10 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
             patchMessage(reply.id, (m) => ({ ...m, content: m.content + delta }));
             if (!speak) return;
             pending += delta;
-            const [sentences, rest] = splitSentences(pending);
+            // Until the reply's first words are queued, its first clause is enough to start.
+            const [sentences, rest] = splitSentences(pending, { firstClause: !replyStarted });
             pending = rest;
-            if (sentences.length) spoke = true;
+            if (sentences.length) spoke = replyStarted = true;
             sentences.forEach((sentence) => speaker.enqueue(sentence, taskId));
           },
           onToolCall: (name) => {
@@ -936,7 +991,7 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
           autonomous: s.autonomous,
           prepareStep: documents?.inject,
           fromVoice: voice,
-          memory: memory.memoryContext(),
+          memory: { ...memory.memoryContext(), recalled },
         });
         window.clearTimeout(ackTimer);
         // Groups used now stay available for the next two exchanges (follow-ups).
@@ -945,6 +1000,7 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
         if (speak && pending.trim()) speaker.enqueue(pending, taskId);
         finishTask(taskId, 'done');
         await speaker.end(taskId);
+        heardAtRef.current.delete(taskId);
         // Silent reply (no voice available): the follow-up window opens now instead.
         if (voice && !speak && !standbyRequestedRef.current) {
           followUpFromRef.current = Date.now();
@@ -953,6 +1009,7 @@ export function useAssistant({ settings, secrets, onNeedSettings }: Options) {
       } catch (error) {
         window.clearTimeout(ackTimer);
         rememberGroups(calledGroups);
+        heardAtRef.current.delete(taskId);
         if (!isCurrent()) return;
         speaker.cancel(taskId);
         patchMessage(reply.id, (m) => (m.content ? m : { ...m, content: describeError(error), error: true }));

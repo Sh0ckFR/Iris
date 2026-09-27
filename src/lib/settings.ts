@@ -83,6 +83,22 @@ export interface Settings {
   setupDone: boolean;
   /** Iris only answers the voices recorded in Settings (lib/voiceprint.ts); off: everyone. */
   voiceLock: boolean;
+  /**
+   * Iris speaks up by herself when something deserves it: a meeting about to start, an e-mail
+   * from someone who matters, rain coming, a date from her memory, the morning briefing
+   * (features/assistant/proactive.ts). Never during the quiet hours.
+   */
+  proactive: boolean;
+  /** Quiet hours (0–23): Iris never speaks up by herself from `start` to `end`. */
+  quietStart: number;
+  quietEnd: number;
+  /** City for the rain warnings (empty: none). */
+  weatherCity: string;
+  /**
+   * Memory search by meaning (a small local model, ~120 MB once): recall finds "my sister's
+   * wedding" from "le mariage de Julie", and relevant memories join each request.
+   */
+  semanticMemory: boolean;
 }
 
 /** OpenAI voices (Realtime + text-to-speech), described in the interface language (i18n). */
@@ -131,6 +147,11 @@ export const DEFAULT_SETTINGS: Settings = {
   uiLanguage: DEFAULT_UI_LANGUAGE,
   setupDone: false,
   voiceLock: false,
+  proactive: true,
+  quietStart: 22,
+  quietEnd: 7,
+  weatherCity: '',
+  semanticMemory: true,
 };
 
 const STORAGE_KEY = 'iris.settings.v1';

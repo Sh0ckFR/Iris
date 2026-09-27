@@ -2,6 +2,8 @@ import { MicVAD } from '@ricky0123/vad-web';
 import type { AsrRequest, AsrResponse } from './localAsr.worker';
 import vadOrtWasm from '@vad-ort/ort-wasm-simd-threaded.wasm?url';
 import { IS_MOBILE } from '../../lib/platform';
+import { FRAME_MS, Utterance } from './speculation';
+import { isAddressedToIris } from './wakeWord';
 
 /**
  * Always-on listening, on this computer only: a voice activity detector (Silero VAD) cuts the
@@ -25,10 +27,13 @@ export interface LocalWakeCallbacks {
   /** `detail`: download progress ("42 %") or the error message. */
   onStatus: (status: LocalWakeStatus, detail?: string) => void;
   /**
-   * A sentence heard and transcribed locally, with its audif (16 kHz) and when it started
-   * (ms): the caller decides whether it was meant for Iris (name, follow-up…).
+   * A sentence heard and transcribed locally, with its audio (16 kHz), when it started and when
+   * the user stopped talking (ms): the caller decides whether it was meant for Iris (name,
+   * follow-up…).
    */
-  onSpeech: (text: string, audio: Float32Array, startedAt: number) => void;
+  onSpeech: (text: string, audio: Float32Array, startedAt: number, endedAt: number) => void;
+  /** Heard "Iris…" while the sentence still goes on: she is being addressed. */
+  onEarlyWake?: () => void;
   /** Language to transcribe in ('fr', 'en'), or null to let Whisper detect it. */
   language: () => string | null;
   /** Microphone loudness (0..1) on standby, for the eye. */
@@ -43,6 +48,8 @@ export interface LocalWakeCallbacks {
 
 /** Sentences waiting for Whisper are dropped beyond this (it can't keep up: people are chatting). */
 const MAX_QUEUE = 2;
+/** preSpeechPadMs (400 ms) in the detector's frames: the start of "Iris" is kept. */
+const PRE_SPEECH_FRAMES = Math.ceil(400 / FRAME_MS);
 
 export class LocalWakeListener {
   private vad: MicVAD | null = null;
@@ -54,6 +61,10 @@ export class LocalWakeListener {
   private pending = new Map<number, (text: string | null) => void>();
   private queued = 0;
   private speechStartedAt = 0;
+  /** The last frames, for the start of the next sentence (the detector's pre-speech pad). */
+  private recent: Float32Array[] = [];
+  /** The sentence being spoken (speculative transcription, see speculation.ts). */
+  private utterance: Utterance | null = null;
   /** The microphone stream and audio context in use, watched for the OS taking them away. */
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
@@ -145,21 +156,24 @@ export class LocalWakeListener {
         preSpeechPadMs: 400,
         redemptionMs: 700,
         minSpeechMs: 150,
-        onFrameProcessed: (_probabilities, frame) => {
+        onFrameProcessed: (probabilities, frame) => {
           let sum = 0;
           for (let i = 0; i < frame.length; i++) sum += frame[i] * frame[i];
           this.cb.onLevel?.(Math.min(1, Math.sqrt(sum / frame.length) * 4)); // same scale as audio.ts rms()
+          this.onFrame(frame.slice(), probabilities.isSpeech);
         },
         onSpeechStart: () => {
           this.speechStartedAt = Date.now();
+          this.utterance = new Utterance(this.recent, this.speechStartedAt);
           console.warn('[iris:wake] speech started');
         },
         onSpeechRealStart: () => this.cb.onSpeechStart?.(),
         onVADMisfire: () => {
           console.warn('[iris:wake] speech too short, ignored');
+          this.utterance = null;
           this.cb.onSpeechDropped?.();
         },
-        onSpeechEnd: (audio) => void this.handleSpeech(audio, this.speechStartedAt),
+        onSpeechEnd: (audio) => this.onSpeechEnd(audio),
       });
       // Stopped while loading (e.g. React re-mounting the effect): don't leave a detector behind.
       if (this.stopped) {
@@ -244,25 +258,63 @@ export class LocalWakeListener {
     });
   }
 
-  private async handleSpeech(audio: Float32Array, startedAt: number) {
+  /** Every frame of the microphone: the sentence being spoken is followed (speculation.ts). */
+  private onFrame(frame: Float32Array, probability: number) {
+    this.recent.push(frame);
+    if (this.recent.length > PRE_SPEECH_FRAMES) this.recent.shift();
+    const u = this.utterance;
+    if (!u || this.paused || this.stopped) return;
+    u.push(frame, probability, Date.now());
+    // A short pause: the sentence so far is transcribed now, in case it is over.
+    if (u.wantsSpeculation() && this.queued === 0) {
+      const spec = u.speculate((audio) => this.transcribe(audio));
+      void spec.promise.then((text) => {
+        // "Iris, …" and the user goes on: she is addressed before the end of the sentence.
+        if (text && this.utterance === u && !u.specCurrent() && isAddressedToIris(text)) this.cb.onEarlyWake?.();
+      });
+    }
+    // Clearly finished ("… ?"): no need to wait for the detector's full pause.
+    const text = u.readyToCommit();
+    if (text) {
+      u.committed = u.frames.length;
+      console.warn(`[iris:wake] sentence over (early): "${text}"`);
+      void this.handleSpeech(u.audioSince(0), u.startedAt, u.lastSpeechAt, Promise.resolve(text));
+    }
+  }
+
+  /** The detector ends the sentence (after its full pause). */
+  private onSpeechEnd(audio: Float32Array) {
+    const u = this.utterance;
+    this.utterance = null;
+    if (u?.committed != null) {
+      // Delivered early; what the user said after that is a sentence of its own.
+      if (u.spokeAfterCommit()) void this.handleSpeech(u.audioSince(u.committed), Date.now(), u.lastSpeechAt);
+      return;
+    }
+    // The speculative transcript covers the whole sentence: no second transcription.
+    const known = u?.specCurrent() ? u.spec!.promise : undefined;
+    void this.handleSpeech(audio, this.speechStartedAt, u?.lastSpeechAt ?? Date.now(), known);
+  }
+
+  private async handleSpeech(audio: Float32Array, startedAt: number, endedAt: number, known?: Promise<string | null>) {
     const seconds = (audio.length / 16_000).toFixed(1);
-    if (this.paused || this.stopped || this.queued >= MAX_QUEUE) {
+    if (this.paused || this.stopped || (!known && this.queued >= MAX_QUEUE)) {
       this.cb.onSpeechDropped?.();
       console.warn(`[iris:wake] speech (${seconds} s) skipped: ${this.paused ? 'session open' : this.stopped ? 'stopped' : 'busy'}`);
       return;
     }
-    console.warn(`[iris:wake] speech detected (${seconds} s), transcribing…`);
+    console.warn(`[iris:wake] speech detected (${seconds} s), ${known ? 'already transcribed' : 'transcribing…'}`);
     this.queued++;
     try {
       // A copy goes to the worker (transferred, so detached here): the audio itself is kept for
       // the cloud session to hear.
-      const text = await this.transcribe(audio.slice());
+      const text = known ? await known : await this.transcribe(audio.slice());
       // The session may have been opened (Space key) while Whisper was working.
       if (!text || this.paused || this.stopped) {
         this.cb.onSpeechDropped?.();
         return;
       }
-      this.cb.onSpeech(text, audio, startedAt);
+      this.cb.onSpeech(text, audio, startedAt, endedAt);
     } finally {
       this.queued--;
     }

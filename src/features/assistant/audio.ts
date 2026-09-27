@@ -18,11 +18,29 @@ export function rms(analyser: AnalyserNode): number {
 
 const BOUNDARY = /[.!?…]+["')\]]*\s+|\n+/g;
 
+const CLAUSE = /[,;:—–]\s+/g;
+
 /**
  * Splits streamed text into complete sentences so speech can start before the reply is done.
  * Very short fragments ("Mr.", "3.") are carried over to avoid choppy audio.
+ *
+ * `firstClause`: nothing has been said of this reply yet — rather than wait for a long first
+ * sentence to end, its first clause is said as soon as it is complete ("Bien sûr, …"): the
+ * voice starts sooner, and the rest follows while it speaks.
  */
-export function splitSentences(buffer: string): [sentences: string[], rest: string] {
+export function splitSentences(buffer: string, { firstClause = false }: { firstClause?: boolean } = {}): [sentences: string[], rest: string] {
+  const [sentences, rest] = splitWhole(buffer);
+  if (!firstClause || sentences.length || rest.length < 40) return [sentences, rest];
+  for (const match of rest.matchAll(CLAUSE)) {
+    const end = (match.index ?? 0) + match[0].length;
+    if (end < 20) continue;
+    if (end > 160) break;
+    return [[rest.slice(0, end).trim()], rest.slice(end)];
+  }
+  return [sentences, rest];
+}
+
+function splitWhole(buffer: string): [sentences: string[], rest: string] {
   const out: string[] = [];
   let start = 0;
   let carry = '';

@@ -7,6 +7,7 @@ import type { VoiceMode } from '../../lib/settings';
 import { useUsage } from '../../lib/usage';
 import { formatMoneyBoth, useCosts } from '../../lib/costs';
 import { useMcpStatus } from '../assistant/mcp';
+import { useVoiceLatency } from '../../lib/latency';
 import { uiLocale, useT } from '../../i18n';
 
 interface Stats {
@@ -81,6 +82,7 @@ export function Telemetry({
   const stats = useStats();
   const usage = useUsage();
   const mcp = useMcpStatus();
+  const latency = useVoiceLatency();
   const t = useT();
   const tt = t.telemetry;
   const locale = uiLocale();
@@ -166,6 +168,14 @@ export function Telemetry({
 
       {/* Consumption since launch: where tokens go, and what caching / local answers save. */}
       <div className="tele-block">
+        {latency.last !== null && (
+          <div className="tele-row" title={tt.latencyTitle}>
+            <span>{tt.voiceLatency}</span>
+            <span>
+              {(latency.last / 1000).toFixed(1)} s{latency.median !== null && ` · ~${(latency.median / 1000).toFixed(1)} s`}
+            </span>
+          </div>
+        )}
         <div className="tele-row">
           <span>{tt.requests}</span>
           <span>

@@ -9,7 +9,7 @@ import type { Tool, ToolSet } from 'ai';
  */
 
 /** Tools whose results come from outside (a page, a document, the screen, a service…). */
-export const UNTRUSTED_TOOLS = /^(search_web|read_webpage|get_news|lookup_wikipedia|reread_document|look_at_screen|use_computer|run_skill|skill_|mcp_)/;
+export const UNTRUSTED_TOOLS = /^(search_web|read_webpage|get_news|lookup_wikipedia|reread_document|look_at_screen|use_computer|run_skill|skill_|mcp_|check_email|read_email|check_calendar)/;
 
 /** Actions that could do harm if an injected instruction triggered them. */
 export const RISKY_TOOLS = /^(run_command|delete_to_trash|write_text_file|move_or_rename|open_file_or_folder|use_computer|create_skill|run_skill|skill_)/;

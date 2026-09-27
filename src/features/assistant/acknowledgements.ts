@@ -24,7 +24,7 @@ const PHRASES: Record<'fr' | 'en', Record<Kind, string[]>> = {
 
 function kindOf(toolName: string | null): Kind {
   if (!toolName) return 'default';
-  if (/^(search_web|read_webpage|get_news|lookup_wikipedia|get_weather|get_stock_quote|recall_memory|look_at_screen|mcp_)/.test(toolName)) return 'search';
+  if (/^(search_web|read_webpage|get_news|lookup_wikipedia|get_weather|get_stock_quote|recall_memory|look_at_screen|check_calendar|check_email|read_email|mcp_)/.test(toolName)) return 'search';
   if (/^(create_visual|generate_image|show_data|create_skill)/.test(toolName)) return 'create';
   return 'computer';
 }

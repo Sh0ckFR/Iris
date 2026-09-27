@@ -1067,6 +1067,39 @@ pub fn adopt_login_shell_path() {
     }
 }
 
+/// Seconds since the user last used the keyboard or mouse, anywhere on the computer (Windows,
+/// macOS): Iris speaks up by herself only when someone is there (see proactive.ts). None where
+/// the system doesn't say (Linux, phones): the web app then judges from its own activity.
+#[tauri::command]
+pub fn user_idle_seconds() -> Option<u64> {
+    #[cfg(windows)]
+    {
+        use windows::Win32::System::SystemInformation::GetTickCount;
+        use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+        let mut info = LASTINPUTINFO { cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32, dwTime: 0 };
+        // SAFETY: `info` is a valid LASTINPUTINFO with its size set, as the API requires.
+        if unsafe { GetLastInputInfo(&mut info) }.as_bool() {
+            // SAFETY: no arguments.
+            let now = unsafe { GetTickCount() };
+            return Some(u64::from(now.wrapping_sub(info.dwTime) / 1000));
+        }
+        None
+    }
+    #[cfg(target_os = "macos")]
+    {
+        #[link(name = "CoreGraphics", kind = "framework")]
+        extern "C" {
+            fn CGEventSourceSecondsSinceLastEventType(state: i32, event_type: u32) -> f64;
+        }
+        // kCGEventSourceStateHIDSystemState = 1, kCGAnyInputEventType = !0.
+        // SAFETY: a plain query with constant arguments.
+        let seconds = unsafe { CGEventSourceSecondsSinceLastEventType(1, u32::MAX) };
+        return if seconds.is_finite() && seconds >= 0.0 { Some(seconds as u64) } else { None };
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    None
+}
+
 #[tauri::command]
 pub async fn system_stats(state: tauri::State<'_, TelemetryState>) -> CmdResult<SystemStats> {
     let mut sys = state.0.lock().map_err(err)?;

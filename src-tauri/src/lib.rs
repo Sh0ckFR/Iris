@@ -1,4 +1,5 @@
 mod computer;
+mod mail;
 mod mcp;
 mod memory;
 mod netguard;
@@ -6,6 +7,7 @@ mod netguard;
 mod portal;
 mod sandbox;
 mod screen;
+mod sync;
 mod system;
 mod vault;
 mod visuals;
@@ -40,6 +42,7 @@ pub fn run() {
             vault::vault_params,
             system::os_context,
             system::system_stats,
+            system::user_idle_seconds,
             system::os_open_app,
             system::os_volume,
             system::os_open_path,
@@ -56,6 +59,9 @@ pub fn run() {
             system::save_visual,
             system::save_image,
             visuals::visual_publish,
+            mail::mail_unread,
+            mail::mail_read,
+            sync::sync_http,
             windows::window_control,
             windows::set_tray_labels,
             windows::autostart,

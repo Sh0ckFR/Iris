@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { terms } from '../features/assistant/web';
 import type { Briefing, GeoPoint } from '../features/assistant/tools';
 import { t } from '../i18n';
+import { tombstoneStore } from './tombstones';
 
 /**
  * The knowledge graph: people, places, organisations, projects and topics of the user's life,
@@ -43,7 +44,7 @@ export interface ExtractedGraph {
   relations: { from: string; to: string; label: string }[];
 }
 
-interface GraphFile {
+export interface GraphFile {
   entities: GraphEntity[];
   relations: GraphRelation[];
 }
@@ -193,6 +194,7 @@ export const knowledgeStore = {
       entities: graph.entities.filter((e) => e.id !== id),
       relations: graph.relations.filter((r) => r.from !== id && r.to !== id),
     };
+    tombstoneStore.add([id]);
     changed();
   },
 
@@ -212,9 +214,22 @@ export const knowledgeStore = {
     changed();
   },
 
+  /** For the memory sync (lib/sync.ts). */
+  syncState: (): GraphFile => graph,
+
+  applySync(next: GraphFile) {
+    graph = { entities: next.entities, relations: next.relations };
+    changed();
+  },
+
   nameOf(id: string): string {
     if (id === USER_ID) return t().common.you;
     return graph.entities.find((e) => e.id === id)?.name ?? id;
+  },
+
+  /** Every relation as a sentence ("Claire → manager de → Vous"), for the search by meaning. */
+  relationSentences(): { text: string; at: number }[] {
+    return graph.relations.map((r) => ({ text: `${knowledgeStore.nameOf(r.from)} → ${r.label} → ${knowledgeStore.nameOf(r.to)}`, at: r.lastSeen }));
   },
 
   /** Relations as sentences matching a query, for recall_memory ("Claire → manager de → Vous"). */

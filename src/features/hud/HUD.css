@@ -456,6 +456,9 @@ kbd {
 .set-body h3 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--hud-accent); }
 .set-note { margin: 0 0 12px; font-size: 12px; line-height: 1.5; color: var(--hud-dim); }
 .set-field { display: flex; flex-direction: column; gap: 6px; }
+/* Fields side by side (quiet hours, server + port…), stacked on a phone. */
+.set-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.set-row > .set-field { flex: 1 1 140px; min-width: 0; }
 .set-label { font-size: 12px; color: var(--hud-text); }
 .set-hint { font-size: 11px; color: var(--hud-dim); }
 /* Release notes of an available update. */

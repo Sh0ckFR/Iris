@@ -2,6 +2,7 @@ import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 import { memoryStore } from '../../lib/memory';
 import { knowledgeStore, parseExtractedGraph, type ExtractedGraph } from '../../lib/knowledge';
+import { semanticMemory } from '../../lib/semantic';
 
 /** remember / forget / recall_memory: the model's access to long-term memory (see lib/memory.ts). */
 export function createMemoryTools(): ToolSet {
@@ -28,9 +29,17 @@ export function createMemoryTools(): ToolSet {
     recall_memory: tool({
       description:
         'Search your long-term memory — facts about the user, summaries of past conversations and their text — for something from an earlier conversation that is not in your instructions ("what did we say about the trip last week?", "what was the name of that restaurant?").',
-      inputSchema: z.object({ query: z.string().describe('Keywords of what you are looking for') }),
+      inputSchema: z.object({ query: z.string().describe('What you are looking for, in a few words or a short question') }),
       execute: async ({ query }) => {
-        const found = memoryStore.search(query);
+        // By meaning first (other words, other language), then by keywords (names, figures).
+        const day = (at: number) => new Date(at).toLocaleDateString(navigator.language, { day: 'numeric', month: 'long', year: 'numeric' });
+        const byMeaning = (await semanticMemory.search(query, { limit: 6 }).catch(() => [])).map((h) => ({
+          kind: h.kind,
+          date: h.kind === 'relation' ? undefined : day(h.at),
+          text: h.text.slice(0, 600),
+        }));
+        const seen = new Set(byMeaning.map((f) => f.text));
+        const found = [...byMeaning, ...memoryStore.search(query).filter((f) => !seen.has(f.text.slice(0, 600)))].slice(0, 10);
         return found.length ? { found } : { found: [], note: 'Nothing about this in memory.' };
       },
     }),

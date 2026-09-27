@@ -4,6 +4,7 @@ import { LocalWakeListener, type LocalWakeStatus, type SpeechEngine } from './lo
 import { matchLocalCommand, type LocalCommand } from './localCommands';
 import { isAddressedToIris } from './wakeWord';
 import { playSfx } from './sfx';
+import { markActivity } from './useProactivity';
 import type { Speaker } from './tts';
 import type { RealtimeSession } from './realtime';
 import type { Attachment } from './documents';
@@ -20,7 +21,7 @@ import { isEnrolling, keepKnownVoices, voiceStore, warmVoiceRecognition, type Vo
  */
 
 export interface VoiceInput {
-  send: (text: string, attachments?: Attachment[], options?: { voice?: boolean }) => Promise<void>;
+  send: (text: string, attachments?: Attachment[], options?: { voice?: boolean; heardAt?: number }) => Promise<void>;
   startVoice: (wakeUp?: { audio: Float32Array; text: string }) => Promise<void>;
   runLocalCommand: (command: LocalCommand, text: string, source: Task['source']) => Promise<boolean>;
   /** A spoken "oui" / "non" while an approval waits: answers it (true when it did). */
@@ -67,7 +68,7 @@ export function useLocalVoice({ listening, voiceActive, live, speaker, sessionRe
   }, [speaker, releaseHold]);
 
   /** What a sentence heard means (once its voice is known, see onSpeech). */
-  const handle = (text: string, audio: Float32Array, startedAt: number) => {
+  const handle = (text: string, audio: Float32Array, startedAt: number, endedAt: number) => {
     const { send, startVoice, runLocalCommand, answerApproval, stopSpeaking } = input.current;
     // An approval is waiting: "oui" / "non" answers it (her name not needed).
     if (answerApproval(text)) {
@@ -113,18 +114,18 @@ export function useLocalVoice({ listening, voiceActive, live, speaker, sessionRe
     window.clearTimeout(holdTimerRef.current);
     if (ttsBusyRef.current || speaker.isHeld) stopSpeaking();
     playSfx('listen');
-    void send(text, [], { voice: true });
+    void send(text, [], { voice: true, heardAt: endedAt });
   };
 
   /** A sentence heard on this computer: is it for Iris, from a voice she listens to? */
-  const onSpeech = useCallback((text: string, audio: Float32Array, startedAt: number) => {
+  const onSpeech = useCallback((text: string, audio: Float32Array, startedAt: number, endedAt: number) => {
     if (isEnrolling()) return; // a voice being recorded: its sentences are not requests
     const { settings } = live.current;
     const overIris = speaker.isHeld || (ttsBusyRef.current && settings.voiceMode !== 'realtime');
     const followUp = settings.voiceMode !== 'realtime' && !overIris && startedAt >= followUpFromRef.current && startedAt <= followUpUntilRef.current;
     const mayAct = input.current.approvalPending() || isAddressedToIris(text) || followUp;
     if (!settings.voiceLock || voiceStore.all.length === 0 || !mayAct) {
-      handle(text, audio, startedAt);
+      handle(text, audio, startedAt, endedAt);
       return;
     }
     void (async () => {
@@ -152,7 +153,7 @@ export function useLocalVoice({ listening, voiceActive, live, speaker, sessionRe
         console.warn(`[iris:voices] kept only the known voice: "${again}"`);
         heard = again;
       }
-      handle(heard, check.audio, startedAt);
+      handle(heard, check.audio, startedAt, endedAt);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -165,8 +166,19 @@ export function useLocalVoice({ listening, voiceActive, live, speaker, sessionRe
         setWakeStatus({ status, detail });
       },
       onSpeech,
-      onSpeechStart,
+      onSpeechStart: () => {
+        markActivity(); // someone is there (for Iris's own initiatives)
+        onSpeechStart();
+      },
       onSpeechDropped: releaseHold,
+      // "Iris, …" heard before the end of the sentence: she stops talking at once (even when
+      // talking over her doesn't pause her) and listens.
+      onEarlyWake: () => {
+        if (sessionRef.current || !ttsBusyRef.current || speaker.isHeld || !speaker.hold()) return;
+        console.warn('[iris:voice] her name heard mid-sentence: Iris pauses');
+        window.clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = window.setTimeout(releaseHold, 12_000);
+      },
       onEngine: setEngine,
       language: () => {
         const { language } = live.current.settings;
