@@ -20,7 +20,7 @@ import { VisualView } from './VisualView';
 import { setPanelHidden, useHiddenPanels } from './panelVisibility';
 import { ControlDock, statusLine } from './ControlDock';
 import { emitTo, listen } from '@tauri-apps/api/event';
-import { MINI_HELLO_EVENT, MINI_STATUS_EVENT, type MiniStatus } from '../../lib/miniWindow';
+import { MINI_HELLO_EVENT, MINI_SEND_EVENT, MINI_STATUS_EVENT, type MiniStatus } from '../../lib/miniWindow';
 import { SettingsPanel } from './SettingsPanel';
 import { SetupWizard } from './SetupWizard';
 import { DashboardPanel } from './DashboardPanel';
@@ -250,6 +250,17 @@ export function IrisHUD() {
   }, [miniKey]);
   useEffect(() => {
     const off = listen(MINI_HELLO_EVENT, () => void emitTo('mini', MINI_STATUS_EVENT, miniStatusRef.current).catch(() => {}));
+    return () => void off.then((f) => f());
+  }, []);
+  // A request typed in the mini window: answered here, like one typed in the interface (the
+  // mini window shows the status and the reply).
+  const sendRef = useRef(assistant.send);
+  sendRef.current = assistant.send;
+  useEffect(() => {
+    const off = listen<string>(MINI_SEND_EVENT, (e) => {
+      const text = typeof e.payload === 'string' ? e.payload.trim() : '';
+      if (text) void sendRef.current(text.slice(0, 4000));
+    });
     return () => void off.then((f) => f());
   }, []);
 

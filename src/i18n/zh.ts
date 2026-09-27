@@ -112,6 +112,8 @@ export const zh: Messages = {
   },
 
   mini: {
+    placeholder: '给 Iris 发消息…',
+    send: '发送',
     connecting: '连接中…',
     open: '打开 Iris',
     openInterface: '打开界面（Ctrl+Shift+J）',

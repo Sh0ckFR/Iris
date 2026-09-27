@@ -51,7 +51,7 @@ One codebase, the same features everywhere the OS allows them.
 - **Low latency, streamed end to end** (economy voice): at the first short pause Whisper already transcribes the sentence (*speculative transcription*): when you have finished, the text is ready, and a sentence that clearly ends (*"…?"*) doesn't wait for the full silence. *"Iris, …"* is recognised before the end of the sentence (she stops talking at once). The reply is spoken from its **first clause**, and OpenAI's voice **plays while it is synthesized** (streamed PCM). The telemetry shows the latency: end of your sentence → first sound.
 
 ### 🪟 Background mode (desktop)
-Closing the window keeps Iris in the tray / menu bar, listening. A **mini window** (eye, status, last reply) stays on top; **Ctrl+Shift+J** or the tray toggles the interface. By voice: *"show yourself"*, *"hide"*, *"move to the top left"*, *"hide the mini window"*. **Start at login** is opt-in (Settings → Personality).
+Closing the window keeps Iris in the tray / menu bar, listening. A **mini window** (eye, status, last reply, and a field to **write to Iris** when you can't speak) stays on top; **Ctrl+Shift+J** or the tray toggles the interface. By voice: *"show yourself"*, *"hide"*, *"move to the top left"*, *"hide the mini window"*. **Start at login** is opt-in (Settings → Personality).
 
 ### 🖱️ Windows, mouse and keyboard (desktop)
 - `manage_window`: focus, minimize, maximize, restore, close (politely) or move a window to a half, quarter, centre or the next screen — found by words of its title, no screenshot.

@@ -112,6 +112,8 @@ export const hi: Messages = {
   },
 
   mini: {
+    placeholder: 'Iris को लिखें…',
+    send: 'भेजें',
     connecting: 'कनेक्ट हो रहा है…',
     open: 'Iris खोलें',
     openInterface: 'इंटरफ़ेस खोलें (Ctrl+Shift+J)',

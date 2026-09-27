@@ -10,8 +10,8 @@
   box-sizing: border-box;
   height: 100vh;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   padding: 10px 10px 10px 12px;
   border-radius: 18px;
   border: 1px solid rgba(118, 185, 0, 0.35);
@@ -22,6 +22,41 @@
   user-select: none;
   overflow: hidden;
 }
+/* Eye, status and buttons; the field to write to Iris below. */
+.mini-top { flex: 1; min-height: 0; display: flex; align-items: center; gap: 12px; }
+
+.mini-input { flex: none; display: flex; gap: 6px; }
+.mini-input input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(118, 185, 0, 0.25);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e6f5d6;
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+  user-select: text;
+}
+.mini-input input::placeholder { color: rgba(230, 245, 214, 0.45); }
+.mini-input input:focus { border-color: var(--mini-accent); }
+.mini-input button {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(118, 185, 0, 0.25);
+  background: rgba(118, 185, 0, 0.12);
+  color: var(--mini-accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+.mini-input button:disabled { opacity: 0.35; cursor: default; }
+.mini-input button:not(:disabled):hover { border-color: var(--mini-accent); }
+
 .mini--listening { --mini-accent: #a6ff2e; }
 .mini--thinking { --mini-accent: #d9ff7a; }
 .mini--speaking { --mini-accent: #8fdc00; }

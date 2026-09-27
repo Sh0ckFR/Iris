@@ -112,6 +112,8 @@ export const ar: Messages = {
   },
 
   mini: {
+    placeholder: 'اكتب إلى Iris…',
+    send: 'إرسال',
     connecting: 'جارٍ الاتصال…',
     open: 'فتح Iris',
     openInterface: 'فتح الواجهة (Ctrl+Shift+J)',

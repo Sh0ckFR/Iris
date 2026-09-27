@@ -115,6 +115,8 @@ export const ru: Messages = {
   },
 
   mini: {
+    placeholder: 'Написать Iris…',
+    send: 'Отправить',
     connecting: 'Подключение…',
     open: 'Открыть Iris',
     openInterface: 'Открыть интерфейс (Ctrl+Shift+J)',

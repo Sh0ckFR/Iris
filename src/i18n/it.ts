@@ -115,6 +115,8 @@ export const it: Messages = {
   },
 
   mini: {
+    placeholder: 'Scrivi a Iris…',
+    send: 'Invia',
     connecting: 'Connessione…',
     open: 'Apri Iris',
     openInterface: 'Apri l’interfaccia (Ctrl+Maiusc+J)',

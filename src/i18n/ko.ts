@@ -112,6 +112,8 @@ export const ko: Messages = {
   },
 
   mini: {
+    placeholder: 'Iris에게 쓰기…',
+    send: '보내기',
     connecting: '연결 중…',
     open: 'Iris 열기',
     openInterface: '인터페이스 열기(Ctrl+Shift+J)',

@@ -136,6 +136,8 @@ export const en = {
   },
 
   mini: {
+    placeholder: 'Write to Iris…',
+    send: 'Send',
     connecting: 'Connecting…',
     open: 'Open Iris',
     openInterface: 'Open the interface (Ctrl+Shift+J)',

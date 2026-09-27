@@ -41,9 +41,10 @@ const BROWSER_ARGS: &str =
 const MAIN: &str = "main";
 #[cfg(desktop)]
 const MINI: &str = "mini";
-/// Size of the mini window (logical pixels), just enough for the eye, status and last reply.
+/// Size of the mini window (logical pixels): the eye, status and last reply, and the field to
+/// write to Iris below them.
 #[cfg(desktop)]
-const MINI_SIZE: (f64, f64) = (340.0, 112.0);
+const MINI_SIZE: (f64, f64) = (340.0, 150.0);
 /// Where the mini window starts: next to the tray icon — the menu bar is at the top on macOS.
 #[cfg(desktop)]
 const MINI_CORNER: &str = if cfg!(target_os = "macos") { "top-right" } else { "bottom-right" };

@@ -112,6 +112,8 @@ export const ja: Messages = {
   },
 
   mini: {
+    placeholder: 'Iris にメッセージ…',
+    send: '送信',
     connecting: '接続中…',
     open: 'Iris を開く',
     openInterface: 'インターフェースを開く（Ctrl+Shift+J）',

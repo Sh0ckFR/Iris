@@ -112,6 +112,8 @@ export const id: Messages = {
   },
 
   mini: {
+    placeholder: 'Tulis ke Iris…',
+    send: 'Kirim',
     connecting: 'Menghubungkan…',
     open: 'Buka Iris',
     openInterface: 'Buka antarmuka (Ctrl+Shift+J)',

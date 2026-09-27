@@ -112,6 +112,8 @@ export const tr: Messages = {
   },
 
   mini: {
+    placeholder: 'Iris’e yaz…',
+    send: 'Gönder',
     connecting: 'Bağlanıyor…',
     open: 'Iris’i aç',
     openInterface: 'Arayüzü aç (Ctrl+Shift+J)',

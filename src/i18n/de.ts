@@ -115,6 +115,8 @@ export const de: Messages = {
   },
 
   mini: {
+    placeholder: 'An Iris schreiben…',
+    send: 'Senden',
     connecting: 'Verbinde…',
     open: 'Iris öffnen',
     openInterface: 'Oberfläche öffnen (Strg+Umschalt+J)',
