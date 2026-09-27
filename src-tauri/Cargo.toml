@@ -1,6 +1,6 @@
 [package]
 name = "iris"
-version = "0.1.0"
+version = "0.2.0"
 description = "Iris — cross-platform AI assistant"
 authors = ["yann"]
 edition = "2021"
